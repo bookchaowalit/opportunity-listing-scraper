@@ -64,8 +64,8 @@ Review of the aggregator found silent failures:
 
 | AC | Red (sha · command · failure) | Green |
 |---|---|---|
-| AC-01, AC-02 | `9a35c40` · `python -m pytest -q tests/test_run_failures.py tests/test_observability.py` · `ModuleNotFoundError: No module named 'observability'`; `test_run_failures.py` alone: `assert None == 1` and `assert None is not None` (init never called). Re-verified red after the 2026-10-22 machine restart | `GREEN_CI` |
-| AC-05 | `21c1511` · `python -m pytest -q tests/test_observability.py` · `KeyError: 'include_local_variables'`, `KeyError: 'before_send'`, missing `exc_type` tag (3 failed) | `GREEN_CI` |
+| AC-01, AC-02 | `9a35c40` · `python -m pytest -q tests/test_run_failures.py tests/test_observability.py` · `ModuleNotFoundError: No module named 'observability'`; `test_run_failures.py` alone: `assert None == 1` and `assert None is not None` (init never called). Re-verified red after the 2026-10-22 machine restart | [run 39755435609](https://github.com/bookchaowalit/opportunity-listing-scraper/actions/runs/39755435609) (success, 3.10 + 3.13, `51ebcba`) |
+| AC-05 | `21c1511` · `python -m pytest -q tests/test_observability.py` · `KeyError: 'include_local_variables'`, `KeyError: 'before_send'`, missing `exc_type` tag (3 failed) | [run 39755435609](https://github.com/bookchaowalit/opportunity-listing-scraper/actions/runs/39755435609) (success, 3.10 + 3.13, `51ebcba`) |
 
 ## Schedule (planned replacement, D6)
 
