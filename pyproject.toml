@@ -13,6 +13,7 @@ dependencies = [
     # Floors for transitive dependencies with known vulnerabilities (see requirements.txt).
     "anyio>=4.14.2",
     "idna>=3.15",
+    "certifi>=2026.10.19",
 ]
 
 [project.optional-dependencies]
