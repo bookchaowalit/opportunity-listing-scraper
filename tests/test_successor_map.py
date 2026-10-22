@@ -38,7 +38,9 @@ def _table_rows() -> dict[str, str]:
 
 def test_every_entry_point_has_a_successor_row():
     scripts = {p.name for p in ROOT.glob("scrape_*.py")}
-    scripts |= {f"opportunities/{p.name}" for p in (ROOT / "opportunities").glob("scrape_*.py")}
+    scripts |= {
+        f"opportunities/{p.name}" for p in (ROOT / "opportunities").glob("scrape_*.py")
+    }
     assert scripts - set(_table_rows()) == set()
 
 
