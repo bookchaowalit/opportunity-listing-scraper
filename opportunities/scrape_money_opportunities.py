@@ -44,6 +44,10 @@ from urllib.parse import urlsplit
 from typing import List, Dict, Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from observability import init_sentry, report_source_failures, run_job  # noqa: E402
 
 
 # The SQLite action tracker used the retired Solo Empire control-plane database.
@@ -1606,6 +1610,7 @@ def main():
         setup_cron()
         return
 
+    sentry = init_sentry("money-opportunities")
     sources = [s.strip() for s in args.sources.split(",")]
     category_filter = [c.strip() for c in args.categories.split(",") if c.strip()] if args.categories else []
 
@@ -1640,6 +1645,15 @@ def main():
             status = 'timeout' if 'timeout' in error_msg.lower() else 'error'
             health_records.append(track_source_health(source, status, 0, duration, error_msg))
             print(f"    ✗ Failed ({status}): {error_msg}")
+
+    report_source_failures(sentry, "money-opportunities", health_records)
+    if health_records and all(r["status"] != "ok" for r in health_records):
+        # A total outage must not replace the last good snapshot with an empty
+        # one (it also feeds the next run's score deltas).
+        save_source_health(health_records)
+        print_source_health_report(health_records)
+        print("\n  Every source failed; previous snapshot kept.")
+        return 1
 
     # Categorize and score
     print(f"\n  Processing {len(all_opportunities)} raw opportunities...")
@@ -1742,6 +1756,7 @@ def main():
         push_to_todoist(unique_opportunities)
 
     print("\n  Done.")
+    return 0
 
 
 class MoneyOpportunityScraper:
@@ -1851,4 +1866,4 @@ class MoneyOpportunityScraper:
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(run_job("money-opportunities", main))

@@ -401,5 +401,8 @@ def main():
     add_to_pipeline(companies, dry_run=not args.apply)
 
 
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    # Opt-in Sentry (SENTRY_DSN): crashes and non-zero exits are reported, then re-raised.
+    from observability import run_job
+
+    raise SystemExit(run_job("fb-local", main))

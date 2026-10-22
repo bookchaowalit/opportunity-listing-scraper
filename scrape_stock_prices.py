@@ -206,4 +206,7 @@ class StockPriceScraper:
 
 
 if __name__ == "__main__":
-    main()
+    # Opt-in Sentry (SENTRY_DSN): crashes and non-zero exits are reported, then re-raised.
+    from observability import run_job
+
+    raise SystemExit(run_job("stock-prices", main))
