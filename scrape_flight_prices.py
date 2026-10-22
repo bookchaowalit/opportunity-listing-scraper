@@ -24,6 +24,7 @@ from pathlib import Path
 
 try:
     from dotenv import load_dotenv
+
     _root = Path(__file__).resolve().parent
     load_dotenv(_root / ".env")
 except ImportError:
@@ -48,8 +49,19 @@ if str(ROOT) not in sys.path:
 
 from atomic_io import append_csv_atomic, render_csv, write_text_atomic  # noqa: E402
 
-FLIGHT_FIELDS = ["origin", "destination", "price_thb", "airline", "departure", "return",
-                 "duration_hours", "stops", "url", "source", "scraped_at"]
+FLIGHT_FIELDS = [
+    "origin",
+    "destination",
+    "price_thb",
+    "airline",
+    "departure",
+    "return",
+    "duration_hours",
+    "stops",
+    "url",
+    "source",
+    "scraped_at",
+]
 OUTPUT_DIR = ROOT / "data" / "book-travel"
 
 TEQUILA_API_KEY = os.environ.get("TEQUILA_API_KEY", "")
@@ -72,26 +84,39 @@ def _brave_search(query: str, limit: int = 10) -> list:
     """Search via Brave Search (no API key needed, works from VPS IPs).
     Falls back to Bing if Brave is rate-limited."""
     import urllib.parse
+
     try:
         url = f"https://search.brave.com/search?q={query.replace(' ', '+')}"
-        resp = httpx.get(url, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"}, timeout=15, follow_redirects=True)
+        resp = httpx.get(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
+            },
+            timeout=15,
+            follow_redirects=True,
+        )
         if resp.status_code == 429:
             return _bing_search(query, limit)
         if resp.status_code != 200:
             return _bing_search(query, limit)
-        soup = BeautifulSoup(resp.text, 'html.parser')
+        soup = BeautifulSoup(resp.text, "html.parser")
         results = []
-        for el in soup.find_all(attrs={'data-pos': True}):
-            a_tag = el.find('a', class_='result-header') or el.find('a')
+        for el in soup.find_all(attrs={"data-pos": True}):
+            a_tag = el.find("a", class_="result-header") or el.find("a")
             if not a_tag:
                 continue
-            href = a_tag.get('href', '')
-            if 'click_url=' in href:
-                href = urllib.parse.unquote(href.split('click_url=')[1].split('&')[0])
+            href = a_tag.get("href", "")
+            if "click_url=" in href:
+                href = urllib.parse.unquote(href.split("click_url=")[1].split("&")[0])
             title = a_tag.get_text(strip=True)
-            desc_el = el.find(class_='snippet-description') or el.find('p', class_='')
+            desc_el = el.find(class_="snippet-description") or el.find("p", class_="")
             desc = desc_el.get_text(strip=True)[:200] if desc_el else ""
-            if title and href and href.startswith('http') and not any(x in href for x in ['duckduckgo.com', 'wikipedia.org']):
+            if (
+                title
+                and href
+                and href.startswith("http")
+                and not any(x in href for x in ["duckduckgo.com", "wikipedia.org"])
+            ):
                 results.append({"title": title[:200], "url": href, "description": desc})
             if len(results) >= limit:
                 break
@@ -108,19 +133,24 @@ def _decode_bing_redirect(href: str) -> str:
     """Decode Bing redirect URL to get actual destination URL."""
     import urllib.parse
     import base64
-    if 'bing.com/ck/' not in href or 'u=' not in href:
+
+    if "bing.com/ck/" not in href or "u=" not in href:
         return href
     try:
         parsed = urllib.parse.urlparse(href)
         params = urllib.parse.parse_qs(parsed.query)
-        if 'u' in params:
-            u_val = params['u'][0]
+        if "u" in params:
+            u_val = params["u"][0]
             # Remove 'a1' prefix and decode base64
-            if u_val.startswith('a1'):
+            if u_val.startswith("a1"):
                 b64_part = u_val[2:]
                 # Add padding if needed
-                padded = b64_part + '=' * (4 - len(b64_part) % 4) if len(b64_part) % 4 else b64_part
-                return base64.b64decode(padded).decode('utf-8', errors='ignore')
+                padded = (
+                    b64_part + "=" * (4 - len(b64_part) % 4)
+                    if len(b64_part) % 4
+                    else b64_part
+                )
+                return base64.b64decode(padded).decode("utf-8", errors="ignore")
             return urllib.parse.unquote(u_val)
     except (ValueError, UnicodeDecodeError):
         pass
@@ -131,23 +161,35 @@ def _bing_search(query: str, limit: int = 10) -> list:
     """Fallback search via Bing when Brave is rate-limited."""
     try:
         url = f"https://www.bing.com/search?q={query.replace(' ', '+')}"
-        resp = httpx.get(url, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"}, timeout=15, follow_redirects=True)
+        resp = httpx.get(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
+            },
+            timeout=15,
+            follow_redirects=True,
+        )
         if resp.status_code != 200:
             return []
-        soup = BeautifulSoup(resp.text, 'html.parser')
+        soup = BeautifulSoup(resp.text, "html.parser")
         results = []
-        for li in soup.find_all('li', class_='b_algo'):
-            a_tag = li.find('h2')
+        for li in soup.find_all("li", class_="b_algo"):
+            a_tag = li.find("h2")
             if not a_tag:
                 continue
-            a_link = a_tag.find('a', href=True)
+            a_link = a_tag.find("a", href=True)
             if not a_link:
                 continue
-            href = _decode_bing_redirect(a_link['href'])
+            href = _decode_bing_redirect(a_link["href"])
             title = a_link.get_text(strip=True)
-            desc_el = li.find('p')
+            desc_el = li.find("p")
             desc = desc_el.get_text(strip=True)[:200] if desc_el else ""
-            if title and href and href.startswith('http') and not any(x in href for x in ['duckduckgo.com', 'wikipedia.org']):
+            if (
+                title
+                and href
+                and href.startswith("http")
+                and not any(x in href for x in ["duckduckgo.com", "wikipedia.org"])
+            ):
                 results.append({"title": title[:200], "url": href, "description": desc})
             if len(results) >= limit:
                 break
@@ -195,7 +237,9 @@ def _firecrawl_search(query: str, limit: int = 10) -> list:
         return []
 
 
-def fetch_kiwi_tequila(origin: str, destination: str, date_from: str, date_to: str) -> list:
+def fetch_kiwi_tequila(
+    origin: str, destination: str, date_from: str, date_to: str
+) -> list:
     """Fetch flights from Kiwi.com Tequila API (requires API key)."""
     if not TEQUILA_API_KEY:
         return []
@@ -220,18 +264,36 @@ def fetch_kiwi_tequila(origin: str, destination: str, date_from: str, date_to: s
         data = resp.json()
         flights = []
         for flight in data.get("data", []):
-            flights.append({
-                "origin": origin,
-                "destination": destination,
-                "price_thb": flight.get("price", 0),
-                "airline": ",".join(dict.fromkeys(r.get("airline", "") for r in flight.get("route", []))),
-                "departure": datetime.fromtimestamp(flight.get("dTime", 0), tz=timezone.utc).strftime("%Y-%m-%d %H:%M") if flight.get("dTime") else "",
-                "return": datetime.fromtimestamp(flight.get("aTime", 0), tz=timezone.utc).strftime("%Y-%m-%d %H:%M") if flight.get("aTime") else "",
-                "duration_hours": round(flight.get("fly_duration", 0) / 3600, 1) if flight.get("fly_duration") else 0,
-                "stops": flight.get("route", [{}]).__len__() - 1 if flight.get("route") else 0,
-                "url": flight.get("deep_link", ""),
-                "source": "Kiwi.com",
-            })
+            flights.append(
+                {
+                    "origin": origin,
+                    "destination": destination,
+                    "price_thb": flight.get("price", 0),
+                    "airline": ",".join(
+                        dict.fromkeys(
+                            r.get("airline", "") for r in flight.get("route", [])
+                        )
+                    ),
+                    "departure": datetime.fromtimestamp(
+                        flight.get("dTime", 0), tz=timezone.utc
+                    ).strftime("%Y-%m-%d %H:%M")
+                    if flight.get("dTime")
+                    else "",
+                    "return": datetime.fromtimestamp(
+                        flight.get("aTime", 0), tz=timezone.utc
+                    ).strftime("%Y-%m-%d %H:%M")
+                    if flight.get("aTime")
+                    else "",
+                    "duration_hours": round(flight.get("fly_duration", 0) / 3600, 1)
+                    if flight.get("fly_duration")
+                    else 0,
+                    "stops": flight.get("route", [{}]).__len__() - 1
+                    if flight.get("route")
+                    else 0,
+                    "url": flight.get("deep_link", ""),
+                    "source": "Kiwi.com",
+                }
+            )
         return flights
     except Exception as e:
         print(f"  Warning: Tequila API failed for {origin}-{destination}: {e}")
@@ -241,25 +303,30 @@ def fetch_kiwi_tequila(origin: str, destination: str, date_from: str, date_to: s
 def fetch_skyscanner_free(origin: str, destination: str) -> list:
     """Fetch flight prices from Skyscanner via free httpx+BS4.
     Falls back to Firecrawl API if Skyscanner fails."""
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
     url = f"https://www.skyscanner.com/transport/flights/{origin.lower()}/{destination.lower()}/"
     try:
         resp = httpx.get(url, headers=headers, timeout=15, follow_redirects=True)
         if resp.status_code != 200:
             return _firecrawl_flight_search(origin, destination)
-        soup = BeautifulSoup(resp.text, 'html.parser')
+        soup = BeautifulSoup(resp.text, "html.parser")
         # Remove noise
-        for tag in soup.find_all(['script', 'style', 'nav', 'footer', 'aside']):
+        for tag in soup.find_all(["script", "style", "nav", "footer", "aside"]):
             tag.decompose()
-        main = soup.find('main') or soup.find('article') or soup.body
-        text = main.get_text(separator=' ', strip=True) if main else resp.text
+        main = soup.find("main") or soup.find("article") or soup.body
+        text = main.get_text(separator=" ", strip=True) if main else resp.text
         results = parse_skyscanner(text, origin, destination)
         if results:
             return results
         return _firecrawl_flight_search(origin, destination)
     except Exception as e:
         err_str = str(e).lower()
-        if any(kw in err_str for kw in ['name resolution', 'dns', 'network is unreachable', 'no route']):
+        if any(
+            kw in err_str
+            for kw in ["name resolution", "dns", "network is unreachable", "no route"]
+        ):
             return _firecrawl_flight_search(origin, destination)
         print(f"  Warning: Skyscanner scrape failed for {origin}-{destination}: {e}")
         return _firecrawl_flight_search(origin, destination)
@@ -296,6 +363,7 @@ def _firecrawl_scrape_url(url: str) -> str:
 def _firecrawl_flight_search(origin: str, destination: str) -> list:
     """Use Firecrawl scrape + search to find flight prices when direct scraping fails."""
     import re
+
     flights = []
 
     # Strategy 1: Firecrawl scrape of Skyscanner URL (renders JS)
@@ -304,7 +372,9 @@ def _firecrawl_flight_search(origin: str, destination: str) -> list:
     if md:
         prices = parse_skyscanner(md, origin, destination)
         if prices:
-            print(f"  Firecrawl scrape: found price ฿{prices[0]['price_thb']:,.0f} for {origin}-{destination}")
+            print(
+                f"  Firecrawl scrape: found price ฿{prices[0]['price_thb']:,.0f} for {origin}-{destination}"
+            )
             return prices
 
     # Strategy 2: Search for flight prices, only keep results with actual prices
@@ -316,7 +386,9 @@ def _firecrawl_flight_search(origin: str, destination: str) -> list:
         desc = r.get("description", "")
         title = r.get("title", "")
         # Search both title and description for prices
-        price_matches = re.findall(r'(?:฿|THB\s*|USD\s*\$|\$)([\d,]+)', f"{title} {desc}")
+        price_matches = re.findall(
+            r"(?:฿|THB\s*|USD\s*\$|\$)([\d,]+)", f"{title} {desc}"
+        )
         price = 0
         for pm in price_matches:
             p = int(pm.replace(",", ""))
@@ -324,21 +396,25 @@ def _firecrawl_flight_search(origin: str, destination: str) -> list:
                 price = p
                 break
         if price:
-            flights.append({
-                "origin": origin,
-                "destination": destination,
-                "price_thb": price,
-                "airline": "",
-                "departure": "",
-                "return": "",
-                "duration_hours": 0,
-                "stops": 0,
-                "url": r.get("url", ""),
-                "source": "WebSearch",
-            })
+            flights.append(
+                {
+                    "origin": origin,
+                    "destination": destination,
+                    "price_thb": price,
+                    "airline": "",
+                    "departure": "",
+                    "return": "",
+                    "duration_hours": 0,
+                    "stops": 0,
+                    "url": r.get("url", ""),
+                    "source": "WebSearch",
+                }
+            )
 
     if flights:
-        print(f"  Search: {len(flights)} results with prices for {origin}-{destination}")
+        print(
+            f"  Search: {len(flights)} results with prices for {origin}-{destination}"
+        )
     else:
         print(f"  No price data available for {origin}-{destination}")
     return flights
@@ -347,25 +423,32 @@ def _firecrawl_flight_search(origin: str, destination: str) -> list:
 def parse_skyscanner(markdown: str, origin: str, destination: str) -> list:
     """Parse Skyscanner markdown for price info."""
     import re
+
     flights = []
     # Look for price patterns like ฿5,990 or $199 or THB 5,990
     # Require a leading digit: a bare "฿," used to crash int("").
-    price_matches = re.findall(r'(?:฿|THB)\s*(\d[\d,]*)', markdown)
+    price_matches = re.findall(r"(?:฿|THB)\s*(\d[\d,]*)", markdown)
     if price_matches:
-        prices = [value for value in (int(p.replace(",", "")) for p in price_matches) if value > 500]
+        prices = [
+            value
+            for value in (int(p.replace(",", "")) for p in price_matches)
+            if value > 500
+        ]
         if prices:
-            flights.append({
-                "origin": origin,
-                "destination": destination,
-                "price_thb": min(prices),
-                "airline": "",
-                "departure": "",
-                "return": "",
-                "duration_hours": 0,
-                "stops": 0,
-                "url": f"https://www.skyscanner.com/transport/flights/{origin.lower()}/{destination.lower()}/",
-                "source": "Skyscanner",
-            })
+            flights.append(
+                {
+                    "origin": origin,
+                    "destination": destination,
+                    "price_thb": min(prices),
+                    "airline": "",
+                    "departure": "",
+                    "return": "",
+                    "duration_hours": 0,
+                    "stops": 0,
+                    "url": f"https://www.skyscanner.com/transport/flights/{origin.lower()}/{destination.lower()}/",
+                    "source": "Skyscanner",
+                }
+            )
     return flights
 
 
@@ -389,7 +472,12 @@ def save_prices(flights: list):
     """Save latest price snapshot (written atomically)."""
     filepath = OUTPUT_DIR / "flight_prices.csv"
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    write_text_atomic(filepath, render_csv(({**flight, "scraped_at": now} for flight in flights), FLIGHT_FIELDS))
+    write_text_atomic(
+        filepath,
+        render_csv(
+            ({**flight, "scraped_at": now} for flight in flights), FLIGHT_FIELDS
+        ),
+    )
     print(f"  Saved {len(flights)} flights to {filepath}")
 
 
@@ -397,7 +485,9 @@ def append_history(flights: list):
     """Append to history CSV (old + new rewritten atomically)."""
     filepath = OUTPUT_DIR / "flight_prices_history.csv"
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    append_csv_atomic(filepath, ({**flight, "scraped_at": now} for flight in flights), FLIGHT_FIELDS)
+    append_csv_atomic(
+        filepath, ({**flight, "scraped_at": now} for flight in flights), FLIGHT_FIELDS
+    )
     print(f"  Appended {len(flights)} rows to {filepath}")
 
 
@@ -410,10 +500,14 @@ def print_alerts(flights: list, prev_prices: dict, drop_pct: float):
         if key in prev_prices and prev_prices[key] > 0:
             change = (flight["price_thb"] - prev_prices[key]) / prev_prices[key] * 100
             if change <= -drop_pct:
-                print(f"    *** {key}: PRICE DROP {change:+.1f}% (฿{prev_prices[key]:,.0f} → ฿{flight['price_thb']:,.0f}) ***")
+                print(
+                    f"    *** {key}: PRICE DROP {change:+.1f}% (฿{prev_prices[key]:,.0f} → ฿{flight['price_thb']:,.0f}) ***"
+                )
                 alerted = True
             elif change >= drop_pct:
-                print(f"    *** {key}: PRICE INCREASE {change:+.1f}% (฿{prev_prices[key]:,.0f} → ฿{flight['price_thb']:,.0f}) ***")
+                print(
+                    f"    *** {key}: PRICE INCREASE {change:+.1f}% (฿{prev_prices[key]:,.0f} → ฿{flight['price_thb']:,.0f}) ***"
+                )
                 alerted = True
     if not alerted:
         print(f"    No significant price changes (alert threshold: {drop_pct}%)")
@@ -421,7 +515,10 @@ def print_alerts(flights: list, prev_prices: dict, drop_pct: float):
 
 class FlightPriceScraper:
     """Wrapper class for scheduler compatibility."""
-    def __init__(self, routes=None, origin="BKK", days_ahead=30, alert_drop_pct=15.0, **kwargs):
+
+    def __init__(
+        self, routes=None, origin="BKK", days_ahead=30, alert_drop_pct=15.0, **kwargs
+    ):
         raw = routes or DEFAULT_ROUTES
         # Normalize: YAML sends list of strings like ["BKK-SIN"], convert to tuples
         if isinstance(raw, list):
@@ -439,7 +536,12 @@ class FlightPriceScraper:
         self.alert_drop_pct = alert_drop_pct
 
     async def run(self, **kwargs):
-        main(routes=self.routes, origin=self.origin, days_ahead=self.days_ahead, alert_drop_pct=self.alert_drop_pct)
+        main(
+            routes=self.routes,
+            origin=self.origin,
+            days_ahead=self.days_ahead,
+            alert_drop_pct=self.alert_drop_pct,
+        )
         return [{"source": "flights", "count": len(self.routes)}]
 
 
@@ -454,11 +556,22 @@ def parse_routes(routes=None, origin="BKK", destinations=None):
         return parsed
     if isinstance(destinations, str) and destinations.strip():
         orig = (origin or "BKK").strip().upper()
-        return [(orig, dest.strip().upper()) for dest in destinations.split(",") if dest.strip()]
+        return [
+            (orig, dest.strip().upper())
+            for dest in destinations.split(",")
+            if dest.strip()
+        ]
     return routes if routes else list(DEFAULT_ROUTES)
 
 
-def main(routes=None, origin="BKK", days_ahead=30, alert_drop_pct=15.0, no_history=False, output_dir=None):
+def main(
+    routes=None,
+    origin="BKK",
+    days_ahead=30,
+    alert_drop_pct=15.0,
+    no_history=False,
+    output_dir=None,
+):
     global OUTPUT_DIR
     if output_dir:
         OUTPUT_DIR = Path(output_dir)
@@ -479,14 +592,16 @@ def main(routes=None, origin="BKK", days_ahead=30, alert_drop_pct=15.0, no_histo
 
         flights = fetch_kiwi_tequila(orig, dest, date_from, date_to)
         if flights:
-            print(f"Kiwi: {len(flights)} flights (cheapest: ฿{min(f['price_thb'] for f in flights):,.0f})")
+            print(
+                f"Kiwi: {len(flights)} flights (cheapest: ฿{min(f['price_thb'] for f in flights):,.0f})"
+            )
             cheapest = min(flights, key=lambda x: x["price_thb"])
             all_flights.append(cheapest)
             continue
 
         flights = fetch_skyscanner_free(orig, dest)
         if flights:
-            priced = [f for f in flights if f['price_thb'] < 9999]
+            priced = [f for f in flights if f["price_thb"] < 9999]
             if priced:
                 print(f"Skyscanner: ฿{priced[0]['price_thb']:,.0f}")
                 all_flights.extend(priced)
@@ -513,14 +628,28 @@ def main(routes=None, origin="BKK", days_ahead=30, alert_drop_pct=15.0, no_histo
 
 
 def cli(argv=None):
-    parser = argparse.ArgumentParser(description="Track flight prices for a bounded set of routes")
-    parser.add_argument("--routes", help="Comma-separated ORIG-DEST pairs, e.g. BKK-SIN,BKK-TYO")
-    parser.add_argument("--origin", default="BKK", help="Origin used with --destinations (default: BKK)")
-    parser.add_argument("--destinations", help="Comma-separated destinations for --origin")
-    parser.add_argument("--days-ahead", type=int, default=30, help="Search window in days (1-180)")
-    parser.add_argument("--alert-drop-pct", type=float, default=15.0, help="Alert threshold %% (0-100]")
+    parser = argparse.ArgumentParser(
+        description="Track flight prices for a bounded set of routes"
+    )
+    parser.add_argument(
+        "--routes", help="Comma-separated ORIG-DEST pairs, e.g. BKK-SIN,BKK-TYO"
+    )
+    parser.add_argument(
+        "--origin", default="BKK", help="Origin used with --destinations (default: BKK)"
+    )
+    parser.add_argument(
+        "--destinations", help="Comma-separated destinations for --origin"
+    )
+    parser.add_argument(
+        "--days-ahead", type=int, default=30, help="Search window in days (1-180)"
+    )
+    parser.add_argument(
+        "--alert-drop-pct", type=float, default=15.0, help="Alert threshold %% (0-100]"
+    )
     parser.add_argument("--no-history", action="store_true")
-    parser.add_argument("--output-dir", default=None, help=f"Output directory (default: {OUTPUT_DIR})")
+    parser.add_argument(
+        "--output-dir", default=None, help=f"Output directory (default: {OUTPUT_DIR})"
+    )
     args = parser.parse_args(argv)
     if not 1 <= args.days_ahead <= 180:
         parser.error("--days-ahead must be from 1 to 180")

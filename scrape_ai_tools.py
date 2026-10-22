@@ -25,6 +25,7 @@ from urllib.parse import urlsplit
 
 try:
     from dotenv import load_dotenv
+
     _root = Path(__file__).resolve().parent
     load_dotenv(_root / ".env")
 except ImportError:
@@ -49,24 +50,54 @@ if str(ROOT) not in sys.path:
 
 from atomic_io import append_csv_atomic, render_csv, write_text_atomic  # noqa: E402
 
-TOOL_FIELDS = ["name", "description", "url", "source", "upvotes", "category", "pricing", "tags",
-               "opportunity_tags", "scraped_at"]
+TOOL_FIELDS = [
+    "name",
+    "description",
+    "url",
+    "source",
+    "upvotes",
+    "category",
+    "pricing",
+    "tags",
+    "opportunity_tags",
+    "scraped_at",
+]
 OUTPUT_DIR = ROOT / "data" / "book-ai"
 
-HEADERS = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"}
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
+}
 
 # URLs that indicate garbage/CAPTCHA/consent pages
 _GARBAGE_URL_PATTERNS = [
-    'google.com', 'youtube.com', 'consent.google', 'policies.google',
-    '/httpservice/retry/', '/search?q=', 'accounts.google',
-    'duckduckgo.com', 'wikipedia.org',
+    "google.com",
+    "youtube.com",
+    "consent.google",
+    "policies.google",
+    "/httpservice/retry/",
+    "/search?q=",
+    "accounts.google",
+    "duckduckgo.com",
+    "wikipedia.org",
 ]
 
 # Opportunity keywords — tools matching these are flagged as build opportunities
 OPPORTUNITY_KEYWORDS = [
-    "api", "sdk", "saas", "automation", "agent", "workflow",
-    "scraping", "monitoring", "analytics", "dashboard",
-    "chatbot", "code", "developer", "integration", "plugin",
+    "api",
+    "sdk",
+    "saas",
+    "automation",
+    "agent",
+    "workflow",
+    "scraping",
+    "monitoring",
+    "analytics",
+    "dashboard",
+    "chatbot",
+    "code",
+    "developer",
+    "integration",
+    "plugin",
 ]
 
 DEFAULT_CATEGORIES = ["ai", "developer-tools", "productivity", "automation"]
@@ -87,43 +118,46 @@ def host_matches(url: str, domain: str) -> bool:
 
 def _is_valid_url(url: str) -> bool:
     """Reject garbage/CAPTCHA/consent/internal URLs."""
-    if not url or url.startswith('/'):
+    if not url or url.startswith("/"):
         return False
     return not any(pat in url for pat in _GARBAGE_URL_PATTERNS)
 
 
 def _clean_search_name(raw_name: str, url: str = "") -> str:
     """Clean breadcrumb garbage from search result titles.
-    
+
     Examples of garbage: 'Product Huntproducthunt.com› home › deals › toolname'
     or 'Site | Category › Tool Name - Description'
     """
     import re
+
     if not raw_name:
         return ""
     # If name contains breadcrumb separators, extract the meaningful part
     # Common patterns: › » | — → ←
-    if any(sep in raw_name for sep in ['›', '»', '→', '←']):
+    if any(sep in raw_name for sep in ["›", "»", "→", "←"]):
         # Take the last segment after the last breadcrumb separator
-        for sep in ['›', '»', '→', '←']:
+        for sep in ["›", "»", "→", "←"]:
             if sep in raw_name:
                 parts = raw_name.split(sep)
                 raw_name = parts[-1].strip()
                 break
     # Remove leading/trailing domain-like text (e.g. 'producthunt.com - ')
-    raw_name = re.sub(r'^[a-z0-9.-]+\.com\s*[-–—|]\s*', '', raw_name, flags=re.IGNORECASE)
+    raw_name = re.sub(
+        r"^[a-z0-9.-]+\.com\s*[-–—|]\s*", "", raw_name, flags=re.IGNORECASE
+    )
     # Clean up
     name = raw_name.strip()
     # If still too long or looks like garbage, try URL slug
     if (len(name) > 60 or not name) and url:
         # Extract slug from URL as fallback
-        slug = url.rstrip('/').split('/')[-1]
+        slug = url.rstrip("/").split("/")[-1]
         # Convert slug to title case: 'ai-chatbot-tool' -> 'AI Chatbot Tool'
-        if slug and not slug.startswith('?') and not slug.startswith('#'):
-            name = slug.replace('-', ' ').replace('_', ' ').title()
+        if slug and not slug.startswith("?") and not slug.startswith("#"):
+            name = slug.replace("-", " ").replace("_", " ").title()
             # Restore common acronyms
-            for acr in ['AI', 'API', 'SDK', 'URL', 'SEO', 'UI', 'UX']:
-                name = re.sub(rf'\b{acr.title()}\b', acr, name, flags=re.IGNORECASE)
+            for acr in ["AI", "API", "SDK", "URL", "SEO", "UI", "UX"]:
+                name = re.sub(rf"\b{acr.title()}\b", acr, name, flags=re.IGNORECASE)
     return name[:80] if name else ""
 
 
@@ -131,27 +165,35 @@ def _brave_search(query: str, limit: int = 10) -> list:
     """Search via Brave Search (no API key needed, works from VPS IPs).
     Falls back to Bing if Brave is rate-limited."""
     import urllib.parse
+
     try:
         url = f"https://search.brave.com/search?q={query.replace(' ', '+')}"
-        resp = httpx.get(url, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"}, timeout=15, follow_redirects=True)
+        resp = httpx.get(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
+            },
+            timeout=15,
+            follow_redirects=True,
+        )
         if resp.status_code == 429:
             # Rate limited, try Bing
             return _bing_search(query, limit)
         if resp.status_code != 200:
             return _bing_search(query, limit)
-        soup = BeautifulSoup(resp.text, 'html.parser')
+        soup = BeautifulSoup(resp.text, "html.parser")
         results = []
-        for el in soup.find_all(attrs={'data-pos': True}):
-            a_tag = el.find('a', class_='result-header') or el.find('a')
+        for el in soup.find_all(attrs={"data-pos": True}):
+            a_tag = el.find("a", class_="result-header") or el.find("a")
             if not a_tag:
                 continue
-            href = a_tag.get('href', '')
-            if 'click_url=' in href:
-                href = urllib.parse.unquote(href.split('click_url=')[1].split('&')[0])
+            href = a_tag.get("href", "")
+            if "click_url=" in href:
+                href = urllib.parse.unquote(href.split("click_url=")[1].split("&")[0])
             title = a_tag.get_text(strip=True)
-            desc_el = el.find(class_='snippet-description') or el.find('p', class_='')
+            desc_el = el.find(class_="snippet-description") or el.find("p", class_="")
             desc = desc_el.get_text(strip=True)[:200] if desc_el else ""
-            if title and href and href.startswith('http') and _is_valid_url(href):
+            if title and href and href.startswith("http") and _is_valid_url(href):
                 results.append({"name": title[:100], "url": href, "description": desc})
             if len(results) >= limit:
                 break
@@ -169,19 +211,24 @@ def _decode_bing_redirect(href: str) -> str:
     """Decode Bing redirect URL to get actual destination URL."""
     import urllib.parse
     import base64
-    if 'bing.com/ck/' not in href or 'u=' not in href:
+
+    if "bing.com/ck/" not in href or "u=" not in href:
         return href
     try:
         parsed = urllib.parse.urlparse(href)
         params = urllib.parse.parse_qs(parsed.query)
-        if 'u' in params:
-            u_val = params['u'][0]
+        if "u" in params:
+            u_val = params["u"][0]
             # Remove 'a1' prefix and decode base64
-            if u_val.startswith('a1'):
+            if u_val.startswith("a1"):
                 b64_part = u_val[2:]
                 # Add padding if needed
-                padded = b64_part + '=' * (4 - len(b64_part) % 4) if len(b64_part) % 4 else b64_part
-                return base64.b64decode(padded).decode('utf-8', errors='ignore')
+                padded = (
+                    b64_part + "=" * (4 - len(b64_part) % 4)
+                    if len(b64_part) % 4
+                    else b64_part
+                )
+                return base64.b64decode(padded).decode("utf-8", errors="ignore")
             return urllib.parse.unquote(u_val)
     except (ValueError, UnicodeDecodeError):
         pass
@@ -192,23 +239,30 @@ def _bing_search(query: str, limit: int = 10) -> list:
     """Fallback search via Bing when Brave is rate-limited."""
     try:
         url = f"https://www.bing.com/search?q={query.replace(' ', '+')}"
-        resp = httpx.get(url, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"}, timeout=15, follow_redirects=True)
+        resp = httpx.get(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
+            },
+            timeout=15,
+            follow_redirects=True,
+        )
         if resp.status_code != 200:
             return []
-        soup = BeautifulSoup(resp.text, 'html.parser')
+        soup = BeautifulSoup(resp.text, "html.parser")
         results = []
-        for li in soup.find_all('li', class_='b_algo'):
-            a_tag = li.find('h2')
+        for li in soup.find_all("li", class_="b_algo"):
+            a_tag = li.find("h2")
             if not a_tag:
                 continue
-            a_link = a_tag.find('a', href=True)
+            a_link = a_tag.find("a", href=True)
             if not a_link:
                 continue
-            href = _decode_bing_redirect(a_link['href'])
+            href = _decode_bing_redirect(a_link["href"])
             title = a_link.get_text(strip=True)
-            desc_el = li.find('p')
+            desc_el = li.find("p")
             desc = desc_el.get_text(strip=True)[:200] if desc_el else ""
-            if title and href and href.startswith('http') and _is_valid_url(href):
+            if title and href and href.startswith("http") and _is_valid_url(href):
                 results.append({"name": title[:100], "url": href, "description": desc})
             if len(results) >= limit:
                 break
@@ -226,15 +280,17 @@ def fetch_producthunt_free() -> list:
     try:
         resp = httpx.get(
             "https://www.producthunt.com/topics/artificial-intelligence",
-            headers=HEADERS, timeout=15, follow_redirects=True,
+            headers=HEADERS,
+            timeout=15,
+            follow_redirects=True,
         )
         if resp.status_code != 200:
             return _brave_producthunt()
-        soup = BeautifulSoup(resp.text, 'html.parser')
-        for tag in soup.find_all(['script', 'style', 'nav', 'footer', 'aside']):
+        soup = BeautifulSoup(resp.text, "html.parser")
+        for tag in soup.find_all(["script", "style", "nav", "footer", "aside"]):
             tag.decompose()
-        main = soup.find('main') or soup.find('article') or soup.body
-        text = main.get_text(separator='\n', strip=True) if main else resp.text
+        main = soup.find("main") or soup.find("article") or soup.body
+        text = main.get_text(separator="\n", strip=True) if main else resp.text
         results = parse_producthunt(text)
         if results:
             return results
@@ -246,13 +302,14 @@ def fetch_producthunt_free() -> list:
 
 def parse_producthunt(markdown: str) -> list:
     """Parse ProductHunt markdown into product listings.
-    
+
     Handles two URL patterns:
       - /posts/slug  (daily launches)
       - /products/slug  (product pages on topic/category pages)
     Product link text may contain \\\\n or \\\\ to separate name from description.
     """
     import re
+
     products = []
     # Match both /posts/ and /products/ URLs; link text may span multiple lines
     # Use re.DOTALL-aware approach: join short lines first
@@ -279,14 +336,14 @@ def parse_producthunt(markdown: str) -> list:
         raw_line = raw_line.strip()
         # Match [text](url) where url is producthunt.com/posts/ or /products/
         match = re.match(
-            r'\[([^\]]+)\]\((https://www\.producthunt\.com/(?:posts|products)/[^\)]+)\)',
+            r"\[([^\]]+)\]\((https://www\.producthunt\.com/(?:posts|products)/[^\)]+)\)",
             raw_line,
         )
         if match:
             raw_name = match.group(1)
             url = match.group(2)
             # Split on \\\\ or \\\\n to get name + description
-            parts = re.split(r'\\+n?\\*', raw_name)
+            parts = re.split(r"\\+n?\\*", raw_name)
             name = parts[0].strip()
             desc = parts[1].strip() if len(parts) > 1 else ""
             # Skip non-product links (e.g. category pages, reviews) and
@@ -296,19 +353,21 @@ def parse_producthunt(markdown: str) -> list:
             seen_urls.add(url)
             # Look for rating / upvotes in surrounding text
             upvotes = ""
-            rating_match = re.search(r'(\d+\.?\d*)\s*\(', raw_line)
+            rating_match = re.search(r"(\d+\.?\d*)\s*\(", raw_line)
             if rating_match:
                 upvotes = rating_match.group(1)
-            products.append({
-                "name": name,
-                "description": desc,
-                "url": url,
-                "source": "ProductHunt",
-                "upvotes": upvotes,
-                "category": "",
-                "pricing": "",
-                "tags": "",
-            })
+            products.append(
+                {
+                    "name": name,
+                    "description": desc,
+                    "url": url,
+                    "source": "ProductHunt",
+                    "upvotes": upvotes,
+                    "category": "",
+                    "pricing": "",
+                    "tags": "",
+                }
+            )
     return products
 
 
@@ -318,15 +377,17 @@ def fetch_theresanaiforthat() -> list:
     try:
         resp = httpx.get(
             "https://theresanaiforthat.com/most-saved/",
-            headers=HEADERS, timeout=15, follow_redirects=True,
+            headers=HEADERS,
+            timeout=15,
+            follow_redirects=True,
         )
         if resp.status_code != 200:
             return _brave_taft()
-        soup = BeautifulSoup(resp.text, 'html.parser')
-        for tag in soup.find_all(['script', 'style', 'nav', 'footer', 'aside']):
+        soup = BeautifulSoup(resp.text, "html.parser")
+        for tag in soup.find_all(["script", "style", "nav", "footer", "aside"]):
             tag.decompose()
-        main = soup.find('main') or soup.find('article') or soup.body
-        text = main.get_text(separator='\n', strip=True) if main else resp.text
+        main = soup.find("main") or soup.find("article") or soup.body
+        text = main.get_text(separator="\n", strip=True) if main else resp.text
         results = parse_taft(text)
         if results:
             return results
@@ -339,13 +400,16 @@ def fetch_theresanaiforthat() -> list:
 def parse_taft(markdown: str) -> list:
     """Parse TAAFT markdown into tool listings."""
     import re
+
     tools = []
     seen_urls = set()
     lines = markdown.split("\n")
     for line in lines:
         line = line.strip()
         # Look for tool links
-        match = re.match(r'\[([^\]]+)\]\((https://theresanaiforthat\.com/ai/[^\)]+)\)', line)
+        match = re.match(
+            r"\[([^\]]+)\]\((https://theresanaiforthat\.com/ai/[^\)]+)\)", line
+        )
         if match:
             name = match.group(1).strip()
             url = match.group(2)
@@ -353,16 +417,18 @@ def parse_taft(markdown: str) -> list:
             if not name or name.startswith("!") or url in seen_urls:
                 continue
             seen_urls.add(url)
-            tools.append({
-                "name": name,
-                "description": "",
-                "url": url,
-                "source": "TheresAnAIForThat",
-                "upvotes": "",
-                "category": "",
-                "pricing": "",
-                "tags": "",
-            })
+            tools.append(
+                {
+                    "name": name,
+                    "description": "",
+                    "url": url,
+                    "source": "TheresAnAIForThat",
+                    "upvotes": "",
+                    "category": "",
+                    "pricing": "",
+                    "tags": "",
+                }
+            )
     return tools
 
 
@@ -417,16 +483,18 @@ def _brave_producthunt() -> list:
                 name = _clean_search_name(r.get("name", ""), url)
             if not name:
                 continue
-            tools.append({
-                "name": name,
-                "description": r.get("description", ""),
-                "url": url,
-                "source": "BraveProductHunt",
-                "upvotes": "",
-                "category": "",
-                "pricing": "",
-                "tags": "",
-            })
+            tools.append(
+                {
+                    "name": name,
+                    "description": r.get("description", ""),
+                    "url": url,
+                    "source": "BraveProductHunt",
+                    "upvotes": "",
+                    "category": "",
+                    "pricing": "",
+                    "tags": "",
+                }
+            )
     if tools:
         print(f"  Brave ProductHunt: {len(tools)} tools")
     return tools
@@ -435,14 +503,15 @@ def _brave_producthunt() -> list:
 def _name_from_ph_url(url: str) -> str:
     """Extract tool name from a ProductHunt URL like /posts/slug or /products/slug."""
     import re
-    m = re.search(r'producthunt\.com/(?:posts|products)/([a-z0-9][a-z0-9-]+)', url)
+
+    m = re.search(r"producthunt\.com/(?:posts|products)/([a-z0-9][a-z0-9-]+)", url)
     if m:
         slug = m.group(1)
         # Remove trailing numbers/dates (e.g. 'tool-name-12345')
-        slug = re.sub(r'-\d+$', '', slug)
-        name = slug.replace('-', ' ').title()
-        for acr in ['AI', 'API', 'SDK', 'URL', 'SEO', 'UI', 'UX']:
-            name = re.sub(rf'\b{acr.title()}\b', acr, name, flags=re.IGNORECASE)
+        slug = re.sub(r"-\d+$", "", slug)
+        name = slug.replace("-", " ").title()
+        for acr in ["AI", "API", "SDK", "URL", "SEO", "UI", "UX"]:
+            name = re.sub(rf"\b{acr.title()}\b", acr, name, flags=re.IGNORECASE)
         return name
     return ""
 
@@ -462,16 +531,18 @@ def _brave_taft() -> list:
                 name = _clean_search_name(r.get("name", ""), url)
             if not name:
                 continue
-            tools.append({
-                "name": name,
-                "description": r.get("description", ""),
-                "url": url,
-                "source": "BraveTAAFT",
-                "upvotes": "",
-                "category": "",
-                "pricing": "",
-                "tags": "",
-            })
+            tools.append(
+                {
+                    "name": name,
+                    "description": r.get("description", ""),
+                    "url": url,
+                    "source": "BraveTAAFT",
+                    "upvotes": "",
+                    "category": "",
+                    "pricing": "",
+                    "tags": "",
+                }
+            )
     if tools:
         print(f"  Brave TAAFT: {len(tools)} tools")
     return tools
@@ -480,12 +551,13 @@ def _brave_taft() -> list:
 def _name_from_taft_url(url: str) -> str:
     """Extract tool name from TAAFT URL like /ai/slug/."""
     import re
-    m = re.search(r'theresanaiforthat\.com/ai/([a-z0-9][a-z0-9-]+)', url)
+
+    m = re.search(r"theresanaiforthat\.com/ai/([a-z0-9][a-z0-9-]+)", url)
     if m:
         slug = m.group(1)
-        name = slug.replace('-', ' ').title()
-        for acr in ['AI', 'API', 'SDK', 'URL', 'SEO', 'UI', 'UX']:
-            name = re.sub(rf'\b{acr.title()}\b', acr, name, flags=re.IGNORECASE)
+        name = slug.replace("-", " ").title()
+        for acr in ["AI", "API", "SDK", "URL", "SEO", "UI", "UX"]:
+            name = re.sub(rf"\b{acr.title()}\b", acr, name, flags=re.IGNORECASE)
         return name
     return ""
 
@@ -496,20 +568,24 @@ def _firecrawl_producthunt() -> list:
     tools = []
     for r in results:
         url = r.get("url", "")
-        if ("producthunt.com/posts/" in url or "producthunt.com/products/" in url) and _is_valid_url(url):
+        if (
+            "producthunt.com/posts/" in url or "producthunt.com/products/" in url
+        ) and _is_valid_url(url):
             name = _name_from_ph_url(url) or _clean_search_name(r.get("name", ""), url)
             if not name:
                 continue
-            tools.append({
-                "name": name,
-                "description": r.get("description", ""),
-                "url": url,
-                "source": "FirecrawlProductHunt",
-                "upvotes": "",
-                "category": "",
-                "pricing": "",
-                "tags": "",
-            })
+            tools.append(
+                {
+                    "name": name,
+                    "description": r.get("description", ""),
+                    "url": url,
+                    "source": "FirecrawlProductHunt",
+                    "upvotes": "",
+                    "category": "",
+                    "pricing": "",
+                    "tags": "",
+                }
+            )
     if tools:
         print(f"  Firecrawl ProductHunt: {len(tools)} tools")
     return tools
@@ -517,24 +593,30 @@ def _firecrawl_producthunt() -> list:
 
 def _firecrawl_taft() -> list:
     """Fetch AI tools from There's An AI For That via Firecrawl search."""
-    results = _firecrawl_search("site:theresanaiforthat.com AI tools most saved 2026", limit=15)
+    results = _firecrawl_search(
+        "site:theresanaiforthat.com AI tools most saved 2026", limit=15
+    )
     tools = []
     for r in results:
         url = r.get("url", "")
         if "theresanaiforthat.com/ai/" in url and _is_valid_url(url):
-            name = _name_from_taft_url(url) or _clean_search_name(r.get("name", ""), url)
+            name = _name_from_taft_url(url) or _clean_search_name(
+                r.get("name", ""), url
+            )
             if not name:
                 continue
-            tools.append({
-                "name": name,
-                "description": r.get("description", ""),
-                "url": url,
-                "source": "FirecrawlTAAFT",
-                "upvotes": "",
-                "category": "",
-                "pricing": "",
-                "tags": "",
-            })
+            tools.append(
+                {
+                    "name": name,
+                    "description": r.get("description", ""),
+                    "url": url,
+                    "source": "FirecrawlTAAFT",
+                    "upvotes": "",
+                    "category": "",
+                    "pricing": "",
+                    "tags": "",
+                }
+            )
     if tools:
         print(f"  Firecrawl TAAFT: {len(tools)} tools")
     return tools
@@ -550,7 +632,9 @@ def fetch_ai_tool_directories() -> list:
         # Try Brave first (reliable, no API key)
         cat_tools_raw = _brave_search(f"top {cat} AI tools list review", limit=10)
         if not cat_tools_raw:
-            cat_tools_raw = _firecrawl_search(f"top {cat} AI tools list review", limit=10)
+            cat_tools_raw = _firecrawl_search(
+                f"top {cat} AI tools list review", limit=10
+            )
             source_tag = "FirecrawlSearch"
         else:
             source_tag = "BraveSearch"
@@ -560,16 +644,18 @@ def fetch_ai_tool_directories() -> list:
                 name = _clean_search_name(r.get("name", ""), url)
                 if not name:
                     continue
-                cat_tools.append({
-                    "name": name,
-                    "description": r.get("description", ""),
-                    "url": url,
-                    "source": source_tag,
-                    "upvotes": "",
-                    "category": cat,
-                    "pricing": "",
-                    "tags": cat,
-                })
+                cat_tools.append(
+                    {
+                        "name": name,
+                        "description": r.get("description", ""),
+                        "url": url,
+                        "source": source_tag,
+                        "upvotes": "",
+                        "category": cat,
+                        "pricing": "",
+                        "tags": cat,
+                    }
+                )
         tools.extend(cat_tools)
     return tools
 
@@ -601,7 +687,14 @@ def load_previous_urls() -> set:
 
 def _tool_rows(tools: list) -> list:
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    return [{**tool, "opportunity_tags": tool.get("opportunity_tags", ""), "scraped_at": now} for tool in tools]
+    return [
+        {
+            **tool,
+            "opportunity_tags": tool.get("opportunity_tags", ""),
+            "scraped_at": now,
+        }
+        for tool in tools
+    ]
 
 
 def save_tools(tools: list):
@@ -632,15 +725,25 @@ def persist_tools(tools: list) -> list:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Scrape AI tools and detect opportunities")
-    parser.add_argument("--sources", default="producthunt,taaft,search",
-                        help="Sources: producthunt, taft, search")
-    parser.add_argument("--categories", default=",".join(DEFAULT_CATEGORIES),
-                        help="Comma-separated categories")
-    parser.add_argument("--min-upvotes", type=int, default=0,
-                        help="Minimum upvotes filter")
-    parser.add_argument("--output-dir", default=str(OUTPUT_DIR),
-                        help="Output directory")
+    parser = argparse.ArgumentParser(
+        description="Scrape AI tools and detect opportunities"
+    )
+    parser.add_argument(
+        "--sources",
+        default="producthunt,taaft,search",
+        help="Sources: producthunt, taft, search",
+    )
+    parser.add_argument(
+        "--categories",
+        default=",".join(DEFAULT_CATEGORIES),
+        help="Comma-separated categories",
+    )
+    parser.add_argument(
+        "--min-upvotes", type=int, default=0, help="Minimum upvotes filter"
+    )
+    parser.add_argument(
+        "--output-dir", default=str(OUTPUT_DIR), help="Output directory"
+    )
     args = parser.parse_args()
 
     sources = [s.strip() for s in args.sources.split(",")]
@@ -679,8 +782,12 @@ def main():
 
     # Filter by upvotes
     if args.min_upvotes > 0:
-        unique_tools = [t for t in unique_tools
-                        if (t.get("upvotes") or "0").isdigit() and int(t.get("upvotes", 0)) >= args.min_upvotes]
+        unique_tools = [
+            t
+            for t in unique_tools
+            if (t.get("upvotes") or "0").isdigit()
+            and int(t.get("upvotes", 0)) >= args.min_upvotes
+        ]
 
     # Detect opportunities
     opportunities = detect_opportunities(unique_tools)
@@ -690,12 +797,16 @@ def main():
     if new_tools:
         print(f"\n  *** {len(new_tools)} NEW AI TOOLS detected ***")
         for tool in new_tools[:10]:
-            print(f"    {tool['name'][:40]:40s} | {tool['source']:15s} | {tool['url'][:50]}")
+            print(
+                f"    {tool['name'][:40]:40s} | {tool['source']:15s} | {tool['url'][:50]}"
+            )
 
     if opportunities:
         print(f"\n  OPPORTUNITIES ({len(opportunities)}):")
         for tool in opportunities[:10]:
-            print(f"    {tool['name'][:35]:35s} | {tool.get('opportunity_tags', ''):20s} | {tool['url'][:40]}")
+            print(
+                f"    {tool['name'][:35]:35s} | {tool.get('opportunity_tags', ''):20s} | {tool['url'][:40]}"
+            )
 
     print(f"\n  Total: {len(unique_tools)} tools, {len(opportunities)} opportunities")
     print("  Done.")
@@ -703,8 +814,9 @@ def main():
 
 class AIToolScraper:
     """Wrapper class for scheduler compatibility."""
+
     def __init__(self, sources=None, categories=None, **kwargs):
-        self.sources = sources or ['producthunt', 'taaft', 'search']
+        self.sources = sources or ["producthunt", "taaft", "search"]
         self.categories = categories or DEFAULT_CATEGORIES
 
     async def run(self, **kwargs):
@@ -712,27 +824,33 @@ class AIToolScraper:
         all_tools = []
         seen_urls = set()
         for source in self.sources:
-            if source == 'producthunt':
+            if source == "producthunt":
                 tools = fetch_producthunt_free()
                 all_tools.extend(tools)
-            elif source == 'taaft':
+            elif source == "taaft":
                 tools = fetch_theresanaiforthat()
                 all_tools.extend(tools)
-            elif source == 'search':
+            elif source == "search":
                 tools = fetch_ai_tool_directories()
                 all_tools.extend(tools)
         # Deduplicate
         unique_tools = []
         for tool in all_tools:
-            if tool['url'] and tool['url'] not in seen_urls:
-                seen_urls.add(tool['url'])
+            if tool["url"] and tool["url"] not in seen_urls:
+                seen_urls.add(tool["url"])
                 unique_tools.append(tool)
-            elif not tool['url']:
+            elif not tool["url"]:
                 unique_tools.append(tool)
         opportunities = detect_opportunities(unique_tools)
         save_tools(unique_tools)
         append_history(unique_tools)
-        return [{"source": "ai_tools", "count": len(unique_tools), "opportunities": len(opportunities)}]
+        return [
+            {
+                "source": "ai_tools",
+                "count": len(unique_tools),
+                "opportunities": len(opportunities),
+            }
+        ]
 
 
 if __name__ == "__main__":

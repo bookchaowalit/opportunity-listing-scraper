@@ -54,6 +54,7 @@ def _quiet(fn, *args, **kwargs):
 
 # --- CoinGecko -------------------------------------------------------------
 
+
 def test_crypto_snapshot_history_and_alerts_from_fixture(tmp_path):
     data = _json("coingecko_simple_price.json")
     with patch.object(crypto.httpx, "get", return_value=FakeResponse(data)) as get:
@@ -65,22 +66,31 @@ def test_crypto_snapshot_history_and_alerts_from_fixture(tmp_path):
     snapshot = _csv(tmp_path / "crypto_prices.csv")
     # "unknown-coin": {} still yields rows with blank values, not a crash.
     assert len(snapshot) == 6
-    eth_thb = next(r for r in snapshot if r["coin_id"] == "ethereum" and r["currency"] == "thb")
+    eth_thb = next(
+        r for r in snapshot if r["coin_id"] == "ethereum" and r["currency"] == "thb"
+    )
     assert eth_thb["change_24h_pct"] == "0"
     assert len(_csv(tmp_path / "crypto_history.csv")) == 12
     alerts = _quiet(crypto.print_alerts, fetched, 5.0, ["usd", "thb"])
     assert {(a["coin"], a["currency"], a["direction"]) for a in alerts} == {
-        ("bitcoin", "usd", "DOWN"), ("bitcoin", "thb", "DOWN")}
+        ("bitcoin", "usd", "DOWN"),
+        ("bitcoin", "thb", "DOWN"),
+    }
 
 
 def test_crypto_trending_skips_partial_entries(tmp_path):
-    with patch.object(crypto.httpx, "get", return_value=FakeResponse(_json("coingecko_trending.json"))):
+    with patch.object(
+        crypto.httpx, "get", return_value=FakeResponse(_json("coingecko_trending.json"))
+    ):
         trending = crypto.fetch_trending()
     assert [c["id"] for c in trending] == ["pepe", "newcoin"]
     assert crypto.parse_trending({"coins": "nope"}) == []
     assert crypto.parse_trending(None) == []
     _quiet(crypto.save_trending, trending, tmp_path)
-    assert [r["symbol"] for r in _csv(tmp_path / "crypto_trending.csv")] == ["PEPE", "NEW"]
+    assert [r["symbol"] for r in _csv(tmp_path / "crypto_trending.csv")] == [
+        "PEPE",
+        "NEW",
+    ]
 
 
 def test_crypto_skips_non_object_coin_entries(tmp_path):
@@ -88,13 +98,16 @@ def test_crypto_skips_non_object_coin_entries(tmp_path):
     assert [r["coin_id"] for r in _csv(tmp_path / "crypto_prices.csv")] == ["eth"]
 
 
-@pytest.mark.parametrize("argv", [
-    ["--coins", "bitcoin,<script>"],
-    ["--coins", " , "],
-    ["--vs-currencies", "usd,dollars!"],
-    ["--alert-threshold", "-1"],
-    ["--coins", ",".join(f"c{i}" for i in range(51))],
-])
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["--coins", "bitcoin,<script>"],
+        ["--coins", " , "],
+        ["--vs-currencies", "usd,dollars!"],
+        ["--alert-threshold", "-1"],
+        ["--coins", ",".join(f"c{i}" for i in range(51))],
+    ],
+)
 def test_crypto_cli_rejects_bad_input_before_network(argv):
     with patch.object(crypto.httpx, "get") as get, redirect_stderr(io.StringIO()):
         with pytest.raises(SystemExit) as ctx:
@@ -106,16 +119,29 @@ def test_crypto_cli_rejects_bad_input_before_network(argv):
 def test_crypto_cli_normalises_ids(tmp_path):
     data = _json("coingecko_simple_price.json")
     with patch.object(crypto.httpx, "get", return_value=FakeResponse(data)) as get:
-        _quiet(crypto.main, ["--coins", "Bitcoin, ethereum,bitcoin", "--vs-currencies", "USD",
-                             "--no-trending", "--output-dir", str(tmp_path)])
+        _quiet(
+            crypto.main,
+            [
+                "--coins",
+                "Bitcoin, ethereum,bitcoin",
+                "--vs-currencies",
+                "USD",
+                "--no-trending",
+                "--output-dir",
+                str(tmp_path),
+            ],
+        )
     assert get.call_args.kwargs["params"]["ids"] == "bitcoin,ethereum"
     assert get.call_args.kwargs["params"]["vs_currencies"] == "usd"
 
 
 # --- Frankfurter -----------------------------------------------------------
 
+
 def test_fx_latest_drops_non_numeric_rates():
-    with patch.object(fx.httpx, "get", return_value=FakeResponse(_json("frankfurter_latest.json"))):
+    with patch.object(
+        fx.httpx, "get", return_value=FakeResponse(_json("frankfurter_latest.json"))
+    ):
         data = fx.fetch_latest("THB", ["USD", "EUR", "JPY"])
     assert data["date"] == "2026-09-25"
     assert set(data["rates"]) == {"USD", "EUR", "JPY"}
@@ -123,7 +149,9 @@ def test_fx_latest_drops_non_numeric_rates():
 
 
 def test_fx_history_is_date_sorted_and_trend_detected():
-    with patch.object(fx.httpx, "get", return_value=FakeResponse(_json("frankfurter_timeseries.json"))):
+    with patch.object(
+        fx.httpx, "get", return_value=FakeResponse(_json("frankfurter_timeseries.json"))
+    ):
         history = fx.fetch_history("THB", ["USD", "EUR"], days=10)
     dates = [row["date"] for row in history]
     assert dates == sorted(dates) and "bad-day" not in dates
@@ -136,7 +164,12 @@ def test_fx_history_is_date_sorted_and_trend_detected():
 
 def test_fx_history_skips_duplicate_rate_dates(tmp_path):
     data = fx.parse_latest(_json("frankfurter_latest.json"), "THB")
-    _quiet(fx.save_rates, data, tmp_path, {"USD": {"direction": "stable", "change_pct": 0.1}})
+    _quiet(
+        fx.save_rates,
+        data,
+        tmp_path,
+        {"USD": {"direction": "stable", "change_pct": 0.1}},
+    )
     assert _quiet(fx.append_history, data, tmp_path) == 3
     assert _quiet(fx.append_history, data, tmp_path) == 0
     newer = {**data, "date": "2026-09-26"}
@@ -146,12 +179,15 @@ def test_fx_history_skips_duplicate_rate_dates(tmp_path):
     assert rates["USD"]["trend_7d"] == "stable"
 
 
-@pytest.mark.parametrize("argv", [
-    ["--base", "BAHT"],
-    ["--symbols", "USD,E1R"],
-    ["--symbols", "THB"],
-    ["--alert-threshold", "-0.1"],
-])
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["--base", "BAHT"],
+        ["--symbols", "USD,E1R"],
+        ["--symbols", "THB"],
+        ["--alert-threshold", "-0.1"],
+    ],
+)
 def test_fx_cli_rejects_bad_input_before_network(argv):
     with patch.object(fx.httpx, "get") as get, redirect_stderr(io.StringIO()):
         with pytest.raises(SystemExit) as ctx:
@@ -161,6 +197,7 @@ def test_fx_cli_rejects_bad_input_before_network(argv):
 
 
 # --- Markdown parsers ------------------------------------------------------
+
 
 def test_parse_producthunt_fixture():
     products = scrape_ai_tools.parse_producthunt(_text("producthunt_ai.md"))
@@ -190,9 +227,15 @@ def test_parse_skyscanner_takes_cheapest_real_fare_and_survives_bare_symbol():
 
 # --- Persistence ordering and atomic writes --------------------------------
 
+
 def test_flight_alerts_compare_against_previous_run(tmp_path, monkeypatch):
     monkeypatch.setattr(flights, "OUTPUT_DIR", tmp_path)
-    route = {"origin": "BKK", "destination": "SIN", "price_thb": 5000, "source": "Skyscanner"}
+    route = {
+        "origin": "BKK",
+        "destination": "SIN",
+        "price_thb": 5000,
+        "source": "Skyscanner",
+    }
     monkeypatch.setattr(flights, "fetch_kiwi_tequila", lambda *a: [])
     monkeypatch.setattr(flights, "fetch_skyscanner_free", lambda *a: [dict(route)])
     _quiet(flights.main, routes=[("BKK", "SIN")])
@@ -201,10 +244,15 @@ def test_flight_alerts_compare_against_previous_run(tmp_path, monkeypatch):
     with redirect_stdout(out):
         flights.main(routes=[("BKK", "SIN")])
     assert "PRICE DROP -20.0%" in out.getvalue()
-    assert [r["price_thb"] for r in _csv(tmp_path / "flight_prices_history.csv")] == ["5000", "4000"]
+    assert [r["price_thb"] for r in _csv(tmp_path / "flight_prices_history.csv")] == [
+        "5000",
+        "4000",
+    ]
 
 
-@pytest.mark.parametrize("argv", [["--days-ahead", "0"], ["--days-ahead", "181"], ["--alert-drop-pct", "0"]])
+@pytest.mark.parametrize(
+    "argv", [["--days-ahead", "0"], ["--days-ahead", "181"], ["--alert-drop-pct", "0"]]
+)
 def test_flight_cli_bounds(argv):
     with redirect_stderr(io.StringIO()):
         with pytest.raises(SystemExit) as ctx:
@@ -215,9 +263,15 @@ def test_flight_cli_bounds(argv):
 def test_ai_tools_new_urls_are_detected_before_history_append(tmp_path, monkeypatch):
     monkeypatch.setattr(scrape_ai_tools, "OUTPUT_DIR", tmp_path)
     first = [{"name": "A", "description": "", "url": "https://x/a", "source": "t"}]
-    assert [t["url"] for t in _quiet(scrape_ai_tools.persist_tools, first)] == ["https://x/a"]
-    second = first + [{"name": "B", "description": "", "url": "https://x/b", "source": "t"}]
-    assert [t["url"] for t in _quiet(scrape_ai_tools.persist_tools, second)] == ["https://x/b"]
+    assert [t["url"] for t in _quiet(scrape_ai_tools.persist_tools, first)] == [
+        "https://x/a"
+    ]
+    second = first + [
+        {"name": "B", "description": "", "url": "https://x/b", "source": "t"}
+    ]
+    assert [t["url"] for t in _quiet(scrape_ai_tools.persist_tools, second)] == [
+        "https://x/b"
+    ]
     assert len(_csv(tmp_path / "ai_tools_history.csv")) == 3
 
 

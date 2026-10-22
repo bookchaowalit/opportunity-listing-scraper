@@ -42,9 +42,21 @@ OUTPUT_DIR = ROOT / "data" / "book-finance"
 COINGECKO_BASE = "https://api.coingecko.com/api/v3"
 
 DEFAULT_COINS = [
-    "bitcoin", "ethereum", "solana", "binancecoin", "ripple",
-    "cardano", "dogecoin", "polkadot", "avalanche-2", "chainlink",
-    "polygon-matic", "litecoin", "uniswap", "stellar", "cosmos"
+    "bitcoin",
+    "ethereum",
+    "solana",
+    "binancecoin",
+    "ripple",
+    "cardano",
+    "dogecoin",
+    "polkadot",
+    "avalanche-2",
+    "chainlink",
+    "polygon-matic",
+    "litecoin",
+    "uniswap",
+    "stellar",
+    "cosmos",
 ]
 
 DEFAULT_CURRENCIES = ["usd", "thb"]
@@ -88,13 +100,15 @@ def parse_trending(data) -> list:
         item = coin.get("item") if isinstance(coin, dict) else None
         if not isinstance(item, dict) or not item.get("id"):
             continue
-        trending.append({
-            "id": item["id"],
-            "name": item.get("name", ""),
-            "symbol": item.get("symbol", ""),
-            "market_cap_rank": item.get("market_cap_rank", ""),
-            "score": item.get("score", ""),
-        })
+        trending.append(
+            {
+                "id": item["id"],
+                "name": item.get("name", ""),
+                "symbol": item.get("symbol", ""),
+                "market_cap_rank": item.get("market_cap_rank", ""),
+                "score": item.get("score", ""),
+            }
+        )
     return trending
 
 
@@ -114,17 +128,27 @@ def save_prices(data: dict, currencies: list, output_dir: Path):
             vol_key = f"{curr}_24h_vol"
             mcap_key = f"{curr}_market_cap"
 
-            rows.append({
-                "coin_id": coin_id,
-                "currency": curr,
-                "price": info.get(price_key, ""),
-                "change_24h_pct": round(info.get(change_key, 0) or 0, 2),
-                "volume_24h": info.get(vol_key, ""),
-                "market_cap": info.get(mcap_key, ""),
-                "updated_at": now,
-            })
+            rows.append(
+                {
+                    "coin_id": coin_id,
+                    "currency": curr,
+                    "price": info.get(price_key, ""),
+                    "change_24h_pct": round(info.get(change_key, 0) or 0, 2),
+                    "volume_24h": info.get(vol_key, ""),
+                    "market_cap": info.get(mcap_key, ""),
+                    "updated_at": now,
+                }
+            )
 
-    fieldnames = ["coin_id", "currency", "price", "change_24h_pct", "volume_24h", "market_cap", "updated_at"]
+    fieldnames = [
+        "coin_id",
+        "currency",
+        "price",
+        "change_24h_pct",
+        "volume_24h",
+        "market_cap",
+        "updated_at",
+    ]
     write_text_atomic(prices_file, render_csv(rows, fieldnames))
 
     print(f"  Saved {len(rows)} rows to {prices_file}")
@@ -135,20 +159,29 @@ def append_history(data: dict, currencies: list, output_dir: Path):
     history_file = output_dir / "crypto_history.csv"
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    fieldnames = ["date", "coin_id", "currency", "price", "change_24h_pct", "market_cap"]
+    fieldnames = [
+        "date",
+        "coin_id",
+        "currency",
+        "price",
+        "change_24h_pct",
+        "market_cap",
+    ]
     rows = []
     for coin_id, info in data.items():
         if not isinstance(info, dict):
             continue
         for curr in currencies:
-            rows.append({
-                "date": now,
-                "coin_id": coin_id,
-                "currency": curr,
-                "price": info.get(curr, ""),
-                "change_24h_pct": round(info.get(f"{curr}_24h_change", 0) or 0, 2),
-                "market_cap": info.get(f"{curr}_market_cap", ""),
-            })
+            rows.append(
+                {
+                    "date": now,
+                    "coin_id": coin_id,
+                    "currency": curr,
+                    "price": info.get(curr, ""),
+                    "change_24h_pct": round(info.get(f"{curr}_24h_change", 0) or 0, 2),
+                    "market_cap": info.get(f"{curr}_market_cap", ""),
+                }
+            )
 
     append_csv_atomic(history_file, rows, fieldnames)
 
@@ -161,7 +194,10 @@ def save_trending(trending: list, output_dir: Path):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     fieldnames = ["date", "id", "name", "symbol", "market_cap_rank", "score"]
-    write_text_atomic(trending_file, render_csv(({"date": now, **coin} for coin in trending), fieldnames))
+    write_text_atomic(
+        trending_file,
+        render_csv(({"date": now, **coin} for coin in trending), fieldnames),
+    )
 
     print(f"  Saved {len(trending)} trending coins to {trending_file}")
 
@@ -177,19 +213,23 @@ def print_alerts(data: dict, threshold: float, currencies: list):
             if abs(change) >= threshold:
                 direction = "UP" if change > 0 else "DOWN"
                 price = info.get(curr, "N/A")
-                alerts.append({
-                    "coin": coin_id,
-                    "currency": curr,
-                    "price": price,
-                    "change": round(change, 2),
-                    "direction": direction,
-                })
+                alerts.append(
+                    {
+                        "coin": coin_id,
+                        "currency": curr,
+                        "price": price,
+                        "change": round(change, 2),
+                        "direction": direction,
+                    }
+                )
 
     if alerts:
         print(f"\n  ALERTS ({threshold}% threshold):")
         for a in sorted(alerts, key=lambda x: abs(x["change"]), reverse=True):
             emoji = "+" if a["direction"] == "UP" else "-"
-            print(f"    {emoji} {a['coin'].upper()}: {a['price']} {a['currency'].upper()} ({a['change']:+.2f}%)")
+            print(
+                f"    {emoji} {a['coin'].upper()}: {a['price']} {a['currency'].upper()} ({a['change']:+.2f}%)"
+            )
     else:
         print(f"\n  No alerts (all moves < {threshold}%)")
 
@@ -198,6 +238,7 @@ def print_alerts(data: dict, threshold: float, currencies: list):
 
 def _csv_list(pattern, label: str, limit: int):
     """argparse type: comma-separated, lower-cased, de-duplicated, validated ids."""
+
     def parse(value: str) -> list:
         items = []
         for raw in value.split(","):
@@ -212,25 +253,46 @@ def _csv_list(pattern, label: str, limit: int):
         if len(items) > limit:
             raise argparse.ArgumentTypeError(f"at most {limit} {label}s per run")
         return items
+
     return parse
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Scrape crypto prices via CoinGecko API")
-    parser.add_argument("--coins", type=_csv_list(COIN_ID_RE, "coin id", MAX_COINS),
-                        default=list(DEFAULT_COINS),
-                        help="Comma-separated coin IDs (default: top 15)")
-    parser.add_argument("--vs-currencies", type=_csv_list(CURRENCY_RE, "currency", 10),
-                        default=list(DEFAULT_CURRENCIES),
-                        help="Comma-separated fiat currencies (default: usd,thb)")
-    parser.add_argument("--alert-threshold", type=float, default=5.0,
-                        help="Alert on 24h change >= this %% (default: 5)")
-    parser.add_argument("--trending", action="store_true", default=True,
-                        help="Also fetch trending coins")
-    parser.add_argument("--no-trending", action="store_true",
-                        help="Skip trending coins")
-    parser.add_argument("--output-dir", default=str(OUTPUT_DIR),
-                        help="Output directory (default: book-finance/data/)")
+    parser = argparse.ArgumentParser(
+        description="Scrape crypto prices via CoinGecko API"
+    )
+    parser.add_argument(
+        "--coins",
+        type=_csv_list(COIN_ID_RE, "coin id", MAX_COINS),
+        default=list(DEFAULT_COINS),
+        help="Comma-separated coin IDs (default: top 15)",
+    )
+    parser.add_argument(
+        "--vs-currencies",
+        type=_csv_list(CURRENCY_RE, "currency", 10),
+        default=list(DEFAULT_CURRENCIES),
+        help="Comma-separated fiat currencies (default: usd,thb)",
+    )
+    parser.add_argument(
+        "--alert-threshold",
+        type=float,
+        default=5.0,
+        help="Alert on 24h change >= this %% (default: 5)",
+    )
+    parser.add_argument(
+        "--trending",
+        action="store_true",
+        default=True,
+        help="Also fetch trending coins",
+    )
+    parser.add_argument(
+        "--no-trending", action="store_true", help="Skip trending coins"
+    )
+    parser.add_argument(
+        "--output-dir",
+        default=str(OUTPUT_DIR),
+        help="Output directory (default: book-finance/data/)",
+    )
     args = parser.parse_args(argv)
     if not args.alert_threshold >= 0:
         parser.error("--alert-threshold must be zero or positive")
@@ -268,6 +330,7 @@ def main(argv=None):
 
 class CryptoPriceScraper:
     """Wrapper class for scheduler compatibility."""
+
     def __init__(self, coins=None, vs_currencies=None, alert_threshold=5.0, **kwargs):
         self.coins = coins or DEFAULT_COINS
         self.currencies = vs_currencies or DEFAULT_CURRENCIES

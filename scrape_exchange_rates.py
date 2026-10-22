@@ -62,7 +62,9 @@ def parse_latest(data, base: str) -> dict:
         "rates": {
             code: float(rate)
             for code, rate in rates.items()
-            if isinstance(rate, (int, float)) and not isinstance(rate, bool) and rate > 0
+            if isinstance(rate, (int, float))
+            and not isinstance(rate, bool)
+            and rate > 0
         },
     }
 
@@ -125,21 +127,32 @@ def save_rates(data: dict, output_dir: Path, trends: dict = None):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     rates_file = output_dir / "exchange_rates.csv"
-    fieldnames = ["date", "base", "currency", "rate", "inverse", "trend_7d", "trend_change_pct", "updated_at"]
+    fieldnames = [
+        "date",
+        "base",
+        "currency",
+        "rate",
+        "inverse",
+        "trend_7d",
+        "trend_change_pct",
+        "updated_at",
+    ]
 
     rows = []
     for currency, rate in data["rates"].items():
         trend = trends.get(currency, {}) if trends else {}
-        rows.append({
-            "date": data["date"],
-            "base": data["base"],
-            "currency": currency,
-            "rate": rate,
-            "inverse": round(1 / rate, 6) if rate else "",
-            "trend_7d": trend.get("direction", ""),
-            "trend_change_pct": trend.get("change_pct", ""),
-            "updated_at": now,
-        })
+        rows.append(
+            {
+                "date": data["date"],
+                "base": data["base"],
+                "currency": currency,
+                "rate": rate,
+                "inverse": round(1 / rate, 6) if rate else "",
+                "trend_7d": trend.get("direction", ""),
+                "trend_change_pct": trend.get("change_pct", ""),
+                "updated_at": now,
+            }
+        )
 
     write_text_atomic(rates_file, render_csv(rows, fieldnames))
 
@@ -156,11 +169,17 @@ def append_history(data: dict, output_dir: Path) -> int:
     """
     history_file = output_dir / "exchange_history.csv"
     fieldnames = ["date", "base", "currency", "rate"]
-    existing_text = history_file.read_text(encoding="utf-8") if history_file.exists() else ""
-    seen = {
-        (row.get("date"), row.get("base"), row.get("currency"))
-        for row in csv.DictReader(existing_text.splitlines())
-    } if existing_text else set()
+    existing_text = (
+        history_file.read_text(encoding="utf-8") if history_file.exists() else ""
+    )
+    seen = (
+        {
+            (row.get("date"), row.get("base"), row.get("currency"))
+            for row in csv.DictReader(existing_text.splitlines())
+        }
+        if existing_text
+        else set()
+    )
 
     rows = []
     for currency, rate in data["rates"].items():
@@ -168,17 +187,22 @@ def append_history(data: dict, output_dir: Path) -> int:
         if key in seen:
             continue
         seen.add(key)
-        rows.append({
-            "date": data["date"],
-            "base": data["base"],
-            "currency": currency,
-            "rate": rate,
-        })
+        rows.append(
+            {
+                "date": data["date"],
+                "base": data["base"],
+                "currency": currency,
+                "rate": rate,
+            }
+        )
 
     if rows or not existing_text:
         if existing_text and not existing_text.endswith("\n"):
             existing_text += "\r\n"
-        write_text_atomic(history_file, existing_text + render_csv(rows, fieldnames, header=not existing_text))
+        write_text_atomic(
+            history_file,
+            existing_text + render_csv(rows, fieldnames, header=not existing_text),
+        )
 
     print(f"  Appended {len(rows)} rows to {history_file}")
     return len(rows)
@@ -197,13 +221,17 @@ def print_summary(data: dict, trends: dict, threshold: float):
         if abs(change) >= threshold:
             alert = f" *** ALERT: {abs(change):.2f}% move in 7 days"
 
-        print(f"    1 {data['base']} = {rate:.4f} {currency}  [{arrow} {change:+.3f}% 7d {direction}]{alert}")
+        print(
+            f"    1 {data['base']} = {rate:.4f} {currency}  [{arrow} {change:+.3f}% 7d {direction}]{alert}"
+        )
 
 
 def _currency_code(value: str) -> str:
     code = value.strip().upper()
     if not CURRENCY_CODE_RE.match(code):
-        raise argparse.ArgumentTypeError(f"expected a 3-letter ISO currency code, got {value!r}")
+        raise argparse.ArgumentTypeError(
+            f"expected a 3-letter ISO currency code, got {value!r}"
+        )
     return code
 
 
@@ -220,17 +248,33 @@ def _currency_codes(value: str) -> list:
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Scrape exchange rates via Frankfurter API")
-    parser.add_argument("--base", type=_currency_code, default=DEFAULT_BASE,
-                        help=f"Base currency (default: {DEFAULT_BASE})")
-    parser.add_argument("--symbols", type=_currency_codes, default=list(DEFAULT_SYMBOLS),
-                        help="Comma-separated target currencies")
-    parser.add_argument("--alert-threshold", type=float, default=0.5,
-                        help="Alert on 7-day change >= this %% (default: 0.5)")
-    parser.add_argument("--no-history", action="store_true",
-                        help="Skip historical data fetch")
-    parser.add_argument("--output-dir", default=str(OUTPUT_DIR),
-                        help="Output directory")
+    parser = argparse.ArgumentParser(
+        description="Scrape exchange rates via Frankfurter API"
+    )
+    parser.add_argument(
+        "--base",
+        type=_currency_code,
+        default=DEFAULT_BASE,
+        help=f"Base currency (default: {DEFAULT_BASE})",
+    )
+    parser.add_argument(
+        "--symbols",
+        type=_currency_codes,
+        default=list(DEFAULT_SYMBOLS),
+        help="Comma-separated target currencies",
+    )
+    parser.add_argument(
+        "--alert-threshold",
+        type=float,
+        default=0.5,
+        help="Alert on 7-day change >= this %% (default: 0.5)",
+    )
+    parser.add_argument(
+        "--no-history", action="store_true", help="Skip historical data fetch"
+    )
+    parser.add_argument(
+        "--output-dir", default=str(OUTPUT_DIR), help="Output directory"
+    )
     args = parser.parse_args(argv)
     if not args.alert_threshold >= 0:
         parser.error("--alert-threshold must be zero or positive")
@@ -271,6 +315,7 @@ def main(argv=None):
 
 class ExchangeRateScraper:
     """Wrapper class for scheduler compatibility."""
+
     def __init__(self, base=None, symbols=None, alert_threshold=0.5, **kwargs):
         self.base = base or DEFAULT_BASE
         self.symbols = symbols or DEFAULT_SYMBOLS
@@ -290,7 +335,7 @@ class ExchangeRateScraper:
         save_rates(data, output_dir, trends)
         append_history(data, output_dir)
         print_summary(data, trends, self.alert_threshold)
-        return [{"source": "exchange_rates", "count": len(data.get('rates', {}))}]
+        return [{"source": "exchange_rates", "count": len(data.get("rates", {}))}]
 
 
 if __name__ == "__main__":

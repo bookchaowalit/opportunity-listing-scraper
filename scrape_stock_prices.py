@@ -35,11 +35,21 @@ YAHOO_BASE = "https://query1.finance.yahoo.com/v8/finance/chart"
 
 # Default portfolio: major tech + Thai ETFs + index proxies
 DEFAULT_SYMBOLS = [
-    "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA",   # US Big Tech
-    "META", "TSLA", "AMD", "CRM", "PLTR",       # Growth
-    "SPY", "QQQ",                                # ETFs
-    "BTC-USD", "ETH-USD",                        # Crypto via Yahoo
-    "^SET50",                                     # Thai market proxy
+    "AAPL",
+    "MSFT",
+    "GOOGL",
+    "AMZN",
+    "NVDA",  # US Big Tech
+    "META",
+    "TSLA",
+    "AMD",
+    "CRM",
+    "PLTR",  # Growth
+    "SPY",
+    "QQQ",  # ETFs
+    "BTC-USD",
+    "ETH-USD",  # Crypto via Yahoo
+    "^SET50",  # Thai market proxy
 ]
 
 
@@ -68,7 +78,11 @@ def fetch_quote(symbol: str) -> dict:
             "change_pct": round(change_pct, 2),
             "currency": meta.get("currency", "USD"),
             "exchange": meta.get("exchangeName", ""),
-            "timestamp": datetime.fromtimestamp(meta.get("regularMarketTime", 0), tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S") if meta.get("regularMarketTime") else "",
+            "timestamp": datetime.fromtimestamp(
+                meta.get("regularMarketTime", 0), tz=timezone.utc
+            ).strftime("%Y-%m-%d %H:%M:%S")
+            if meta.get("regularMarketTime")
+            else "",
         }
     except Exception as e:
         print(f"  Warning: Failed to fetch {symbol}: {e}")
@@ -101,12 +115,24 @@ def save_prices(quotes: list):
     """Save latest price snapshot."""
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     filepath = OUTPUT_DIR / "stock_prices.csv"
-    fieldnames = ["symbol", "price", "prev_close", "change", "change_pct", "currency", "exchange", "timestamp", "scraped_at"]
+    fieldnames = [
+        "symbol",
+        "price",
+        "prev_close",
+        "change",
+        "change_pct",
+        "currency",
+        "exchange",
+        "timestamp",
+        "scraped_at",
+    ]
     with open(filepath, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         for q in quotes:
-            writer.writerow({**q, "scraped_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+            writer.writerow(
+                {**q, "scraped_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+            )
     print(f"  Saved {len(quotes)} quotes to {filepath}")
 
 
@@ -114,14 +140,26 @@ def append_history(quotes: list):
     """Append to history CSV."""
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     filepath = OUTPUT_DIR / "stock_history.csv"
-    fieldnames = ["symbol", "price", "prev_close", "change", "change_pct", "currency", "exchange", "timestamp", "scraped_at"]
+    fieldnames = [
+        "symbol",
+        "price",
+        "prev_close",
+        "change",
+        "change_pct",
+        "currency",
+        "exchange",
+        "timestamp",
+        "scraped_at",
+    ]
     file_exists = filepath.exists()
     with open(filepath, "a", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         if not file_exists:
             writer.writeheader()
         for q in quotes:
-            writer.writerow({**q, "scraped_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+            writer.writerow(
+                {**q, "scraped_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+            )
     print(f"  Appended {len(quotes)} rows to {filepath}")
 
 
@@ -141,7 +179,9 @@ def print_alerts(quotes: list, threshold: float, prev_prices: dict):
             multi_change = (q["price"] - prev_prices[sym]) / prev_prices[sym] * 100
             if abs(multi_change) >= threshold * 2:
                 direction = "RISING" if multi_change > 0 else "FALLING"
-                print(f"    *** {sym}: {direction} {multi_change:+.2f}% since last check ***")
+                print(
+                    f"    *** {sym}: {direction} {multi_change:+.2f}% since last check ***"
+                )
                 alerted = True
     if not alerted:
         print(f"    No alerts (all moves < {threshold}%)")
@@ -149,14 +189,23 @@ def print_alerts(quotes: list, threshold: float, prev_prices: dict):
 
 def main():
     parser = argparse.ArgumentParser(description="Scrape stock/portfolio prices")
-    parser.add_argument("--symbols", default=",".join(DEFAULT_SYMBOLS),
-                        help="Comma-separated stock symbols")
-    parser.add_argument("--alert-threshold", type=float, default=3.0,
-                        help="Alert threshold %% for daily moves")
-    parser.add_argument("--no-history", action="store_true",
-                        help="Skip appending to history")
-    parser.add_argument("--output-dir", default=str(OUTPUT_DIR),
-                        help="Output directory")
+    parser.add_argument(
+        "--symbols",
+        default=",".join(DEFAULT_SYMBOLS),
+        help="Comma-separated stock symbols",
+    )
+    parser.add_argument(
+        "--alert-threshold",
+        type=float,
+        default=3.0,
+        help="Alert threshold %% for daily moves",
+    )
+    parser.add_argument(
+        "--no-history", action="store_true", help="Skip appending to history"
+    )
+    parser.add_argument(
+        "--output-dir", default=str(OUTPUT_DIR), help="Output directory"
+    )
     args = parser.parse_args()
 
     symbols = [s.strip() for s in args.symbols.split(",") if s.strip()]
@@ -180,16 +229,19 @@ def main():
 
     # Summary table
     print(f"\n  {'Symbol':12s} {'Price':>12s} {'Change':>10s} {'Currency':>8s}")
-    print(f"  {'-'*12} {'-'*12} {'-'*10} {'-'*8}")
+    print(f"  {'-' * 12} {'-' * 12} {'-' * 10} {'-' * 8}")
     for q in quotes:
         arrow = "+" if q["change_pct"] >= 0 else ""
-        print(f"  {q['symbol']:12s} {q['price']:>12.2f} {arrow}{q['change_pct']:>8.2f}% {q['currency']:>8s}")
+        print(
+            f"  {q['symbol']:12s} {q['price']:>12.2f} {arrow}{q['change_pct']:>8.2f}% {q['currency']:>8s}"
+        )
 
     print("\n  Done.")
 
 
 class StockPriceScraper:
     """Wrapper class for scheduler compatibility."""
+
     def __init__(self, symbols=None, alert_threshold=3.0, **kwargs):
         self.symbols = symbols or DEFAULT_SYMBOLS
         self.alert_threshold = alert_threshold

@@ -50,7 +50,10 @@ class HackerNewsTests(unittest.TestCase):
         # "said" must not count as "ai"; jobs and low-score stories are dropped.
         self.assertEqual(
             titles,
-            ["Show HN: An AI tool that automates invoices", "Building a SaaS business on weekends"],
+            [
+                "Show HN: An AI tool that automates invoices",
+                "Building a SaaS business on weekends",
+            ],
         )
         self.assertEqual(rows[0]["category"], "ai-content")
         self.assertEqual(rows[1]["category"], "trending-products")
@@ -59,52 +62,76 @@ class HackerNewsTests(unittest.TestCase):
         self.assertTrue(all(row["trend_score"] <= 95 for row in rows))
 
     def test_top_list_failure_returns_empty(self):
-        with patch.object(money.httpx, "get", return_value=FakeResponse(None, status=503)):
+        with patch.object(
+            money.httpx, "get", return_value=FakeResponse(None, status=503)
+        ):
             self.assertEqual(money.scrape_hackernews(), [])
 
 
 class GitHubTrendingTests(unittest.TestCase):
     def test_filters_by_whole_word_keywords(self):
-        with patch.object(money.httpx, "get", return_value=FakeResponse(_load("github_search.json"))):
+        with patch.object(
+            money.httpx, "get", return_value=FakeResponse(_load("github_search.json"))
+        ):
             rows = money.scrape_github_trending()
-        self.assertEqual([row["url"] for row in rows], [
-            "https://github.com/acme/agent-kit",
-            "https://github.com/acme/shop-scraper",
-        ])
+        self.assertEqual(
+            [row["url"] for row in rows],
+            [
+                "https://github.com/acme/agent-kit",
+                "https://github.com/acme/shop-scraper",
+            ],
+        )
         self.assertEqual(rows[0]["category"], "ai-content")
         self.assertEqual(rows[0]["trend_score"], 90)
         self.assertEqual(rows[1]["title"], "acme/shop-scraper: ")
 
     def test_rate_limited_returns_empty(self):
-        with patch.object(money.httpx, "get", return_value=FakeResponse({}, status=403)):
+        with patch.object(
+            money.httpx, "get", return_value=FakeResponse({}, status=403)
+        ):
             self.assertEqual(money.scrape_github_trending(), [])
 
 
 class DeFiYieldTests(unittest.TestCase):
     def setUp(self):
-        with patch.object(scrape_defi_yields.httpx, "get", return_value=FakeResponse(_load("defillama_pools.json"))):
+        with patch.object(
+            scrape_defi_yields.httpx,
+            "get",
+            return_value=FakeResponse(_load("defillama_pools.json")),
+        ):
             self.pools = scrape_defi_yields.fetch_pools()
 
     def test_filter_drops_small_tvl_suspicious_apy_and_nulls(self):
         kept = scrape_defi_yields.filter_pools(self.pools, chains=[], min_apy=5.0)
         self.assertEqual([p["pool"] for p in kept], ["p-stable", "p-new", "p-spike"])
-        eth_only = scrape_defi_yields.filter_pools(self.pools, chains=["Ethereum"], min_apy=5.0, categories=["Lending"])
+        eth_only = scrape_defi_yields.filter_pools(
+            self.pools, chains=["Ethereum"], min_apy=5.0, categories=["Lending"]
+        )
         self.assertEqual([p["pool"] for p in eth_only], ["p-stable"])
 
     def test_stablecoin_detection_tolerates_missing_symbol(self):
         stable = scrape_defi_yields.detect_stablecoin_pools(self.pools)
-        self.assertEqual([p["pool"] for p in stable], ["p-stable", "p-small", "p-spike"])
+        self.assertEqual(
+            [p["pool"] for p in stable], ["p-stable", "p-small", "p-spike"]
+        )
 
     def test_new_pool_and_apy_spike_detection(self):
         kept = scrape_defi_yields.filter_pools(self.pools, chains=[], min_apy=5.0)
-        found = scrape_defi_yields.detect_opportunities(kept, {"p-stable": 8.0, "p-spike": 10.0})
-        self.assertEqual([(o["type"], o["pool"]["pool"]) for o in found], [
-            ("NEW_HIGH_YIELD", "p-new"),
-            ("APY_SPIKE", "p-spike"),
-        ])
+        found = scrape_defi_yields.detect_opportunities(
+            kept, {"p-stable": 8.0, "p-spike": 10.0}
+        )
+        self.assertEqual(
+            [(o["type"], o["pool"]["pool"]) for o in found],
+            [
+                ("NEW_HIGH_YIELD", "p-new"),
+                ("APY_SPIKE", "p-spike"),
+            ],
+        )
 
     def test_fetch_failure_returns_empty_list(self):
-        with patch.object(scrape_defi_yields.httpx, "get", return_value=FakeResponse({}, status=500)):
+        with patch.object(
+            scrape_defi_yields.httpx, "get", return_value=FakeResponse({}, status=500)
+        ):
             self.assertEqual(scrape_defi_yields.fetch_pools(), [])
 
 

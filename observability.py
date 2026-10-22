@@ -76,5 +76,7 @@ def report_source_failures(
         return
     names = ", ".join(sorted(f"{r.get('source')} ({r.get('status')})" for r in failed))
     level = "error" if len(failed) == len(records) else "warning"
-    sdk.capture_message(f"{job}: {len(failed)} of {len(records)} sources failed: {names}", level=level)
+    sdk.capture_message(
+        f"{job}: {len(failed)} of {len(records)} sources failed: {names}", level=level
+    )
     sdk.flush(timeout=5)

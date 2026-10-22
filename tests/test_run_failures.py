@@ -89,7 +89,9 @@ def _boom():
 
 def _run(sources: dict, monkeypatch) -> Any:
     names = ",".join(sources)
-    monkeypatch.setattr(sys, "argv", ["scrape_money_opportunities.py", "--sources", names])
+    monkeypatch.setattr(
+        sys, "argv", ["scrape_money_opportunities.py", "--sources", names]
+    )
     with patch.dict(money.SOURCE_MAP, sources, clear=True):
         return money.main()
 
@@ -101,7 +103,9 @@ def _write_previous_snapshot(out: Path) -> str:
     return snapshot.read_text(encoding="utf-8")
 
 
-def test_all_sources_failing_keeps_the_previous_snapshot_and_exits_1(fake_sentry, sandbox, monkeypatch):
+def test_all_sources_failing_keeps_the_previous_snapshot_and_exits_1(
+    fake_sentry, sandbox, monkeypatch
+):
     before = _write_previous_snapshot(sandbox)
     code = _run({"hn": ("HN", _boom), "github": ("GitHub", _boom)}, monkeypatch)
     assert code == 1
@@ -112,15 +116,21 @@ def test_all_sources_failing_keeps_the_previous_snapshot_and_exits_1(fake_sentry
     assert "secret-query" not in message
 
 
-def test_partial_failure_reports_a_warning_and_still_saves(fake_sentry, sandbox, monkeypatch):
+def test_partial_failure_reports_a_warning_and_still_saves(
+    fake_sentry, sandbox, monkeypatch
+):
     code = _run({"hn": ("HN", _ok), "github": ("GitHub", _boom)}, monkeypatch)
     assert code in (0, None)
     assert fake_sentry.init_kwargs is not None
     assert fake_sentry.init_kwargs["send_default_pii"] is False
     assert fake_sentry.init_kwargs["traces_sample_rate"] == 0.0
-    assert fake_sentry.messages == [("warning", "money-opportunities: 1 of 2 sources failed: github (error)")]
+    assert fake_sentry.messages == [
+        ("warning", "money-opportunities: 1 of 2 sources failed: github (error)")
+    ]
     with (sandbox / "money_opportunities.csv").open(encoding="utf-8") as handle:
-        assert [row["title"] for row in csv.DictReader(handle)] == ["AI prompt pack for Etsy sellers"]
+        assert [row["title"] for row in csv.DictReader(handle)] == [
+            "AI prompt pack for Etsy sellers"
+        ]
 
 
 def test_clean_run_sends_nothing(fake_sentry, sandbox, monkeypatch):

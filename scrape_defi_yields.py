@@ -67,7 +67,9 @@ def finite_number(value):
     return number if math.isfinite(number) else None
 
 
-def filter_pools(pools: list, chains: list, min_apy: float, categories: list = None) -> list:
+def filter_pools(
+    pools: list, chains: list, min_apy: float, categories: list = None
+) -> list:
     """Filter pools by chain, finite APY in [min_apy, 1000], TVL and category."""
     filtered = []
     for pool in pools:
@@ -118,20 +120,24 @@ def detect_opportunities(pools: list, prev_pools: dict) -> list:
 
         # New pool with high APY
         if pool_id not in prev_pools and apy >= 20 and tvl >= 500000:
-            opportunities.append({
-                "type": "NEW_HIGH_YIELD",
-                "pool": pool,
-                "reason": f"New pool with {apy:.1f}% APY, TVL ${tvl:,.0f}",
-            })
+            opportunities.append(
+                {
+                    "type": "NEW_HIGH_YIELD",
+                    "pool": pool,
+                    "reason": f"New pool with {apy:.1f}% APY, TVL ${tvl:,.0f}",
+                }
+            )
         # APY spike
         elif pool_id in prev_pools:
             prev_apy = prev_pools[pool_id]
             if prev_apy > 0 and apy > prev_apy * 1.5 and apy >= 15:
-                opportunities.append({
-                    "type": "APY_SPIKE",
-                    "pool": pool,
-                    "reason": f"APY jumped from {prev_apy:.1f}% to {apy:.1f}%",
-                })
+                opportunities.append(
+                    {
+                        "type": "APY_SPIKE",
+                        "pool": pool,
+                        "reason": f"APY jumped from {prev_apy:.1f}% to {apy:.1f}%",
+                    }
+                )
     return opportunities
 
 
@@ -155,26 +161,40 @@ def save_yields(pools: list):
     """Save latest yield snapshot."""
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     filepath = OUTPUT_DIR / "defi_yields.csv"
-    fieldnames = ["pool_id", "chain", "project", "symbol", "tvl_usd", "apy", "apy_base", "apy_reward",
-                  "reward_tokens", "category", "url", "scraped_at"]
+    fieldnames = [
+        "pool_id",
+        "chain",
+        "project",
+        "symbol",
+        "tvl_usd",
+        "apy",
+        "apy_base",
+        "apy_reward",
+        "reward_tokens",
+        "category",
+        "url",
+        "scraped_at",
+    ]
     with open(filepath, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         for pool in pools:
-            writer.writerow({
-                "pool_id": pool.get("pool", ""),
-                "chain": pool.get("chain", ""),
-                "project": pool.get("project", ""),
-                "symbol": pool.get("symbol", "")[:30],
-                "tvl_usd": pool.get("tvlUsd", 0),
-                "apy": pool.get("apy", 0),
-                "apy_base": pool.get("apyBase", 0),
-                "apy_reward": pool.get("apyReward", 0),
-                "reward_tokens": ",".join(pool.get("rewardTokens", []) or []),
-                "category": pool.get("category", ""),
-                "url": pool.get("url", ""),
-                "scraped_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            })
+            writer.writerow(
+                {
+                    "pool_id": pool.get("pool", ""),
+                    "chain": pool.get("chain", ""),
+                    "project": pool.get("project", ""),
+                    "symbol": pool.get("symbol", "")[:30],
+                    "tvl_usd": pool.get("tvlUsd", 0),
+                    "apy": pool.get("apy", 0),
+                    "apy_base": pool.get("apyBase", 0),
+                    "apy_reward": pool.get("apyReward", 0),
+                    "reward_tokens": ",".join(pool.get("rewardTokens", []) or []),
+                    "category": pool.get("category", ""),
+                    "url": pool.get("url", ""),
+                    "scraped_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                }
+            )
     print(f"  Saved {len(pools)} pools to {filepath}")
 
 
@@ -182,41 +202,60 @@ def append_history(pools: list):
     """Append to history CSV."""
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     filepath = OUTPUT_DIR / "defi_yields_history.csv"
-    fieldnames = ["pool_id", "chain", "project", "symbol", "tvl_usd", "apy", "apy_base", "apy_reward",
-                  "category", "scraped_at"]
+    fieldnames = [
+        "pool_id",
+        "chain",
+        "project",
+        "symbol",
+        "tvl_usd",
+        "apy",
+        "apy_base",
+        "apy_reward",
+        "category",
+        "scraped_at",
+    ]
     file_exists = filepath.exists()
     with open(filepath, "a", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         if not file_exists:
             writer.writeheader()
         for pool in pools:
-            writer.writerow({
-                "pool_id": pool.get("pool", ""),
-                "chain": pool.get("chain", ""),
-                "project": pool.get("project", ""),
-                "symbol": pool.get("symbol", "")[:30],
-                "tvl_usd": pool.get("tvlUsd", 0),
-                "apy": pool.get("apy", 0),
-                "apy_base": pool.get("apyBase", 0),
-                "apy_reward": pool.get("apyReward", 0),
-                "category": pool.get("category", ""),
-                "scraped_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            })
+            writer.writerow(
+                {
+                    "pool_id": pool.get("pool", ""),
+                    "chain": pool.get("chain", ""),
+                    "project": pool.get("project", ""),
+                    "symbol": pool.get("symbol", "")[:30],
+                    "tvl_usd": pool.get("tvlUsd", 0),
+                    "apy": pool.get("apy", 0),
+                    "apy_base": pool.get("apyBase", 0),
+                    "apy_reward": pool.get("apyReward", 0),
+                    "category": pool.get("category", ""),
+                    "scraped_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                }
+            )
     print(f"  Appended {len(pools)} rows to {filepath}")
 
 
 def main():
     parser = argparse.ArgumentParser(description="Scrape DeFi yields from DeFiLlama")
-    parser.add_argument("--chains", default=",".join(DEFAULT_CHAINS),
-                        help="Comma-separated chains")
-    parser.add_argument("--min-apy", type=float, default=DEFAULT_MIN_APY,
-                        help="Minimum APY to track")
-    parser.add_argument("--categories", default="",
-                        help="Comma-separated categories (lending,staking,dex,etc)")
-    parser.add_argument("--no-history", action="store_true",
-                        help="Skip appending to history")
-    parser.add_argument("--output-dir", default=str(OUTPUT_DIR),
-                        help="Output directory")
+    parser.add_argument(
+        "--chains", default=",".join(DEFAULT_CHAINS), help="Comma-separated chains"
+    )
+    parser.add_argument(
+        "--min-apy", type=float, default=DEFAULT_MIN_APY, help="Minimum APY to track"
+    )
+    parser.add_argument(
+        "--categories",
+        default="",
+        help="Comma-separated categories (lending,staking,dex,etc)",
+    )
+    parser.add_argument(
+        "--no-history", action="store_true", help="Skip appending to history"
+    )
+    parser.add_argument(
+        "--output-dir", default=str(OUTPUT_DIR), help="Output directory"
+    )
     args = parser.parse_args()
 
     chains = [c.strip() for c in args.chains.split(",") if c.strip()]
@@ -245,8 +284,10 @@ def main():
         # Sort by APY descending
         stable_pools.sort(key=lambda x: x.get("apy", 0), reverse=True)
         for pool in stable_pools[:10]:
-            print(f"    {pool.get('project', ''):15s} | {pool.get('symbol', '')[:20]:20s} | "
-                  f"{pool.get('chain', ''):10s} | APY: {pool.get('apy', 0):.1f}% | TVL: ${pool.get('tvlUsd', 0):,.0f}")
+            print(
+                f"    {pool.get('project', ''):15s} | {pool.get('symbol', '')[:20]:20s} | "
+                f"{pool.get('chain', ''):10s} | APY: {pool.get('apy', 0):.1f}% | TVL: ${pool.get('tvlUsd', 0):,.0f}"
+            )
 
     # Detect new opportunities
     prev_pools = load_previous_pools()
@@ -255,8 +296,10 @@ def main():
         print(f"\n  *** YIELD OPPORTUNITIES ({len(opportunities)}) ***")
         for opp in opportunities[:10]:
             pool = opp["pool"]
-            print(f"    [{opp['type']}] {pool.get('project', ''):15s} | {pool.get('chain', ''):10s} | "
-                  f"APY: {pool.get('apy', 0):.1f}% | {opp['reason']}")
+            print(
+                f"    [{opp['type']}] {pool.get('project', ''):15s} | {pool.get('chain', ''):10s} | "
+                f"APY: {pool.get('apy', 0):.1f}% | {opp['reason']}"
+            )
 
     # Save
     save_yields(filtered)
@@ -277,7 +320,9 @@ def main():
         if chain_pools:
             chain_pools.sort(key=lambda x: x.get("apy", 0), reverse=True)
             top = chain_pools[0]
-            print(f"    {chain:12s}: {top.get('project', ''):15s} | {top.get('symbol', '')[:20]:20s} | APY: {top.get('apy', 0):.1f}%")
+            print(
+                f"    {chain:12s}: {top.get('project', ''):15s} | {top.get('symbol', '')[:20]:20s} | APY: {top.get('apy', 0):.1f}%"
+            )
 
     print(f"\n  Total: {len(filtered)} pools tracked")
     print("  Done.")
@@ -285,6 +330,7 @@ def main():
 
 class DeFiYieldScraper:
     """Wrapper class for scheduler compatibility."""
+
     def __init__(self, chains=None, min_apy=5.0, categories=None, **kwargs):
         self.chains = chains or DEFAULT_CHAINS
         self.min_apy = min_apy

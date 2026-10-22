@@ -26,6 +26,7 @@ from urllib.parse import urlsplit
 
 try:
     from dotenv import load_dotenv
+
     # Load .env from project root (5 levels up from this script)
     _root = Path(__file__).resolve().parent
     load_dotenv(_root / ".env")
@@ -48,7 +49,9 @@ except ImportError:
 ROOT = Path(__file__).resolve().parent  # repository root
 OUTPUT_DIR = ROOT / "data" / "book-marketing"
 
-HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+}
 
 # Default keywords to track (customize per your sites)
 DEFAULT_KEYWORDS = [
@@ -127,38 +130,44 @@ def google_search(query: str, limit: int = 20) -> list:
     """Search via Google and return results as list of dicts with url, title, description.
     Falls back to Firecrawl API if Google fails."""
     import re
+
     results = []
     try:
         google_url = f"https://www.google.com/search?q={query.replace(' ', '+')}&num={limit}&hl=en"
         resp = httpx.get(google_url, headers=HEADERS, timeout=15, follow_redirects=True)
         if resp.status_code != 200:
             return _firecrawl_search(query, limit)
-        soup = BeautifulSoup(resp.text, 'html.parser')
-        for a_tag in soup.find_all('a', href=True):
-            href = a_tag['href']
+        soup = BeautifulSoup(resp.text, "html.parser")
+        for a_tag in soup.find_all("a", href=True):
+            href = a_tag["href"]
             # Google wraps URLs as /url?q=ACTUAL_URL&...
-            m = re.search(r'/url\?q=(https?://[^&]+)', href)
+            m = re.search(r"/url\?q=(https?://[^&]+)", href)
             if m:
                 url = m.group(1)
             else:
                 url = href
             # Skip Google's own links
-            if host_matches(url, 'google.com') or host_matches(url, 'youtube.com'):
+            if host_matches(url, "google.com") or host_matches(url, "youtube.com"):
                 continue
             title = a_tag.get_text(strip=True)
             if title and len(title) > 3:
-                results.append({
-                    "url": url,
-                    "title": title[:200],
-                    "description": "",
-                })
+                results.append(
+                    {
+                        "url": url,
+                        "title": title[:200],
+                        "description": "",
+                    }
+                )
             if len(results) >= limit:
                 break
         if not results:
             return _firecrawl_search(query, limit)
     except Exception as e:
         err_str = str(e).lower()
-        if any(kw in err_str for kw in ['name resolution', 'dns', 'network is unreachable', 'no route']):
+        if any(
+            kw in err_str
+            for kw in ["name resolution", "dns", "network is unreachable", "no route"]
+        ):
             return _firecrawl_search(query, limit)
         print(f"  Warning: Google search failed for '{query}': {e}")
         return _firecrawl_search(query, limit)
@@ -187,12 +196,14 @@ def check_ranking(keyword: str, target_domains: list, limit: int = 20) -> dict:
         for domain in target_domains:
             if host_matches(url, domain):
                 rankings["found"] = True
-                rankings["all_positions"].append({
-                    "rank": i,
-                    "url": url,
-                    "domain": domain,
-                    "title": title,
-                })
+                rankings["all_positions"].append(
+                    {
+                        "rank": i,
+                        "url": url,
+                        "domain": domain,
+                        "title": title,
+                    }
+                )
 
                 if rankings["best_rank"] is None or i < rankings["best_rank"]:
                     rankings["best_rank"] = i
@@ -230,24 +241,32 @@ def save_rankings(rankings: list, output_dir: Path):
 
     rankings_file = output_dir / "seo_rankings.csv"
     fieldnames = [
-        "scraped_at", "keyword", "found", "best_rank", "best_domain",
-        "best_url", "best_title", "total_results"
+        "scraped_at",
+        "keyword",
+        "found",
+        "best_rank",
+        "best_domain",
+        "best_url",
+        "best_title",
+        "total_results",
     ]
 
     with open(rankings_file, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         for r in rankings:
-            writer.writerow({
-                "scraped_at": now,
-                "keyword": r["keyword"],
-                "found": r["found"],
-                "best_rank": r["best_rank"] or "",
-                "best_domain": r["best_domain"] or "",
-                "best_url": r["best_url"] or "",
-                "best_title": (r["best_title"] or "")[:100],
-                "total_results": r["total_results"],
-            })
+            writer.writerow(
+                {
+                    "scraped_at": now,
+                    "keyword": r["keyword"],
+                    "found": r["found"],
+                    "best_rank": r["best_rank"] or "",
+                    "best_domain": r["best_domain"] or "",
+                    "best_url": r["best_url"] or "",
+                    "best_title": (r["best_title"] or "")[:100],
+                    "total_results": r["total_results"],
+                }
+            )
 
     print(f"  Saved {len(rankings)} keyword rankings to {rankings_file}")
 
@@ -261,13 +280,15 @@ def append_history(rankings: list, output_dir: Path):
     fieldnames = ["date", "keyword", "best_rank", "best_domain", "found"]
     rows = []
     for r in rankings:
-        rows.append({
-            "date": now,
-            "keyword": r["keyword"],
-            "best_rank": r["best_rank"] or "",
-            "best_domain": r["best_domain"] or "",
-            "found": r["found"],
-        })
+        rows.append(
+            {
+                "date": now,
+                "keyword": r["keyword"],
+                "best_rank": r["best_rank"] or "",
+                "best_domain": r["best_domain"] or "",
+                "found": r["found"],
+            }
+        )
 
     with open(history_file, "a", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -308,22 +329,38 @@ def print_summary(rankings: list, previous: dict, alert_improve: int = None):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Check SEO keyword rankings via free Google search")
-    parser.add_argument("--keywords", default=None,
-                        help="Comma-separated keywords (default: built-in list)")
-    parser.add_argument("--domain", default=None,
-                        help="Single domain to track (overrides --domains)")
-    parser.add_argument("--domains", default=",".join(DEFAULT_DOMAINS),
-                        help="Comma-separated domains to track")
-    parser.add_argument("--alert-improve", type=int, default=None,
-                        help="Alert when ranking improves by N+ positions")
-    parser.add_argument("--output-dir", default=str(OUTPUT_DIR),
-                        help="Output directory")
+    parser = argparse.ArgumentParser(
+        description="Check SEO keyword rankings via free Google search"
+    )
+    parser.add_argument(
+        "--keywords",
+        default=None,
+        help="Comma-separated keywords (default: built-in list)",
+    )
+    parser.add_argument(
+        "--domain", default=None, help="Single domain to track (overrides --domains)"
+    )
+    parser.add_argument(
+        "--domains",
+        default=",".join(DEFAULT_DOMAINS),
+        help="Comma-separated domains to track",
+    )
+    parser.add_argument(
+        "--alert-improve",
+        type=int,
+        default=None,
+        help="Alert when ranking improves by N+ positions",
+    )
+    parser.add_argument(
+        "--output-dir", default=str(OUTPUT_DIR), help="Output directory"
+    )
     args = parser.parse_args()
 
     keywords = args.keywords.split(",") if args.keywords else DEFAULT_KEYWORDS
     keywords = [k.strip() for k in keywords]
-    target_domains = [args.domain] if args.domain else [d.strip() for d in args.domains.split(",")]
+    target_domains = (
+        [args.domain] if args.domain else [d.strip() for d in args.domains.split(",")]
+    )
     output_dir = Path(args.output_dir)
 
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] SEO Ranking Checker")
@@ -342,15 +379,17 @@ def main():
             rankings.append(ranking)
         except Exception as e:
             print(f"    Error: {e}")
-            rankings.append({
-                "keyword": keyword,
-                "found": False,
-                "best_rank": None,
-                "best_domain": None,
-                "best_url": None,
-                "best_title": None,
-                "total_results": 0,
-            })
+            rankings.append(
+                {
+                    "keyword": keyword,
+                    "found": False,
+                    "best_rank": None,
+                    "best_domain": None,
+                    "best_url": None,
+                    "best_title": None,
+                    "total_results": 0,
+                }
+            )
 
     # Save
     if rankings:
@@ -363,13 +402,16 @@ def main():
 
 class SEORankingScraper:
     """Wrapper class for scheduler compatibility."""
+
     def __init__(self, keywords=None, domains=None, alert_improve=None, **kwargs):
         self.keywords = keywords or DEFAULT_KEYWORDS
         self.domains = domains or DEFAULT_DOMAINS
         self.alert_improve = alert_improve
 
     async def run(self, **kwargs):
-        print(f"[SEORankingScraper] Keywords: {len(self.keywords)} | Domains: {self.domains}")
+        print(
+            f"[SEORankingScraper] Keywords: {len(self.keywords)} | Domains: {self.domains}"
+        )
         output_dir = OUTPUT_DIR
         history_file = output_dir / "seo_rankings_history.csv"
         previous = load_previous_rankings(history_file)
@@ -380,8 +422,17 @@ class SEORankingScraper:
                 rankings.append(ranking)
             except Exception as e:
                 print(f"  Error checking {keyword}: {e}")
-                rankings.append({"keyword": keyword, "found": False, "best_rank": None,
-                                 "best_domain": None, "best_url": None, "best_title": None, "total_results": 0})
+                rankings.append(
+                    {
+                        "keyword": keyword,
+                        "found": False,
+                        "best_rank": None,
+                        "best_domain": None,
+                        "best_url": None,
+                        "best_title": None,
+                        "total_results": 0,
+                    }
+                )
         if rankings:
             save_rankings(rankings, output_dir)
             append_history(rankings, output_dir)
