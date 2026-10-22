@@ -1,4 +1,5 @@
 # Runtime dependencies for the opportunity scripts (install into a venv).
+# Kept in sync with pyproject.toml [project] dependencies (uv.lock pins them for CI).
 httpx>=0.27.0
 beautifulsoup4>=4.12.0
 requests>=2.31.0

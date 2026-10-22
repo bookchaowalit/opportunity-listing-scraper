@@ -52,7 +52,7 @@ from observability import init_sentry, report_source_failures, run_job  # noqa: 
 
 # The SQLite action tracker used the retired Solo Empire control-plane database.
 # It stays disabled: every DB helper checks DB_PATH.exists() first.
-get_db_connection = None
+get_db_connection: Any = None
 
 try:
     from dotenv import load_dotenv
@@ -893,7 +893,7 @@ def track_revenue(url: str, actual: float = None, expected: float = None):
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         updates = []
-        params = []
+        params: List[object] = []
         if actual is not None:
             updates.append("revenue_actual = ?")
             params.append(actual)
@@ -1223,8 +1223,8 @@ def deduplicate_cross_source(opportunities: List[Dict[str, Any]]) -> List[Dict[s
     - Merge source info into notes
     - Track cross-source appearances
     """
-    merged = []
-    seen_titles = []  # (title, index_in_merged)
+    merged: List[Dict[str, Any]] = []
+    seen_titles: List[Any] = []  # (title, index_in_merged)
 
     for opp in opportunities:
         url = opp.get("url", "")

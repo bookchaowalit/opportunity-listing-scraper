@@ -19,6 +19,7 @@ import argparse
 import csv
 import os
 import sys
+from typing import Any
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -168,7 +169,7 @@ def check_ranking(keyword: str, target_domains: list, limit: int = 20) -> dict:
     """Check ranking position for a keyword across target domains."""
     results = google_search(keyword, limit=limit)
 
-    rankings = {
+    rankings: dict[str, Any] = {
         "keyword": keyword,
         "total_results": len(results),
         "found": False,
@@ -204,7 +205,7 @@ def check_ranking(keyword: str, target_domains: list, limit: int = 20) -> dict:
 
 def load_previous_rankings(history_file: Path) -> dict:
     """Load previous rankings for comparison."""
-    previous = {}
+    previous: dict[str, Any] = {}
     if not history_file.exists():
         return previous
 

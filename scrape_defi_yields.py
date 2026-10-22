@@ -265,7 +265,7 @@ def main():
 
     # Top yields by chain
     print("\n  TOP YIELDS BY CHAIN:")
-    by_chain = {}
+    by_chain: dict[str, list] = {}
     for pool in filtered:
         chain = pool.get("chain", "Unknown")
         if chain not in by_chain:

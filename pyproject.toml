@@ -1,0 +1,71 @@
+[project]
+name = "opportunity-listing-scraper"
+version = "0.1.0"
+description = "Legacy multi-domain opportunity scraper scripts (successors: the domain *-data products)."
+requires-python = ">=3.10"
+# Same runtime set as requirements.txt, which the scripts' own error messages and the
+# README's pip path install from: change both together.
+dependencies = [
+    "httpx>=0.27.0",
+    "beautifulsoup4>=4.12.0",
+    "requests>=2.31.0",
+    "python-dotenv>=1.0.0",
+    # Floors for transitive dependencies with known vulnerabilities (see requirements.txt).
+    "anyio>=4.14.2",
+    "idna>=3.15",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-cov>=7", "ruff==0.16.9", "mypy==2.4.0", "types-requests"]
+# Opt-in error reporting (observability.py); off without SENTRY_DSN.
+sentry = ["sentry-sdk>=2.72,<3"]
+
+[tool.uv]
+# Loose scripts, not an installable package.
+package = false
+
+[tool.coverage.run]
+source = ["."]
+omit = ["tests/*", ".venv/*"]
+
+[tool.mypy]
+python_version = "3.10"
+files = ["observability.py", "atomic_io.py", "scrape_*.py", "opportunities", "tests"]
+# Tests import the aggregator and each other by bare module name (sys.path inserts).
+mypy_path = ["opportunities", "tests"]
+explicit_package_bases = true
+# Gradual: the scripts predate type hints, so bodies are checked (check_untyped_defs)
+# without requiring annotations everywhere. New modules are strict (override below).
+check_untyped_defs = true
+strict_equality = true
+warn_redundant_casts = true
+warn_unused_configs = true
+warn_unused_ignores = true
+
+# Legacy scripts (successor products exist; see PRODUCT.md): implicit Optional defaults
+# and BeautifulSoup 4.13's str | AttributeValueList attribute types are tolerated here
+# rather than rewriting archive-bound code. Tighten module by module if a script survives.
+[[tool.mypy.overrides]]
+module = [
+    "scrape_ai_tools",
+    "scrape_crypto_prices",
+    "scrape_defi_yields",
+    "scrape_exchange_rates",
+    "scrape_fb_local",
+    "scrape_flight_prices",
+    "scrape_money_opportunities",
+    "scrape_seo_rankings",
+    "scrape_stock_prices",
+]
+implicit_optional = true
+disable_error_code = ["arg-type", "call-overload", "operator"]
+
+[[tool.mypy.overrides]]
+module = ["observability"]
+disallow_any_generics = true
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_untyped_decorators = true
+no_implicit_reexport = true
+warn_return_any = true
