@@ -6,6 +6,12 @@ re-raised unchanged, and a non-zero exit code (returned or via ``sys.exit``)
 becomes one ``error`` event. :func:`report_source_failures` sends one event for
 a run in which sources failed, naming them with their status only (the error
 text can echo request URLs). ``send_default_pii`` stays off.
+
+Scrubbing (security review 2026-10-22): frame locals and exception messages can
+hold source bodies or tokens, so ``include_local_variables`` is off, request bodies
+are never sent, and :func:`scrub_event` (``before_send``) drops frame ``vars``,
+request data, breadcrumbs and extras and blanks exception messages, keeping only
+the exception type. Crashes are reported as the type name plus tags.
 """
 
 from __future__ import annotations
@@ -15,6 +21,32 @@ from collections.abc import Callable, Iterable, Mapping
 from importlib import import_module
 from types import ModuleType
 from typing import Any
+
+
+def _strip_frames(container: Any) -> None:
+    if not isinstance(container, dict):
+        return
+    for item in container.get("values") or []:
+        if not isinstance(item, dict):
+            continue
+        frames = (item.get("stacktrace") or {}).get("frames") or []
+        for frame in frames:
+            if isinstance(frame, dict):
+                frame.pop("vars", None)
+
+
+def scrub_event(event: dict[str, Any], hint: dict[str, Any]) -> dict[str, Any]:
+    """``before_send``: drop locals, request data and free text that may hold secrets."""
+    for key in ("request", "breadcrumbs", "extra"):
+        event.pop(key, None)
+    exception = event.get("exception")
+    _strip_frames(exception)
+    if isinstance(exception, dict):
+        for item in exception.get("values") or []:
+            if isinstance(item, dict):
+                item["value"] = ""
+    _strip_frames(event.get("threads"))
+    return event
 
 
 def init_sentry(job: str) -> ModuleType | None:
@@ -31,6 +63,9 @@ def init_sentry(job: str) -> ModuleType | None:
         environment=os.environ.get("SENTRY_ENVIRONMENT", "local"),
         send_default_pii=False,
         traces_sample_rate=0.0,
+        include_local_variables=False,
+        max_request_body_size="never",
+        before_send=scrub_event,
     )
     sdk.set_tag("job", job)
     return sdk
@@ -57,7 +92,9 @@ def run_job(job: str, main: Callable[[], object]) -> int:
         raise
     except BaseException as exc:
         if sdk is not None and not isinstance(exc, KeyboardInterrupt):
-            sdk.capture_exception(exc)
+            # Type name and tags only: the message can carry tokens or source bodies.
+            sdk.set_tag("exc_type", type(exc).__name__)
+            sdk.capture_message(f"{job} crashed: {type(exc).__name__}", level="error")
             sdk.flush(timeout=5)
         raise
     if sdk is not None and code != 0:
