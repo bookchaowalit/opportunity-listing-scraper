@@ -28,16 +28,61 @@ def fake_sentry(monkeypatch):
     return sdk
 
 
-def test_uncaught_exception_is_captured_and_reraised(fake_sentry):
+def test_uncaught_exception_is_reported_by_type_only_and_reraised(fake_sentry):
     def main():
-        raise ValueError("boom")
+        raise ValueError("token=abc123 in https://example.test/secret")
 
     with pytest.raises(ValueError):
         run_job("crypto-prices", main)
-    assert fake_sentry.tags == {"job": "crypto-prices"}
+    assert fake_sentry.tags == {"job": "crypto-prices", "exc_type": "ValueError"}
     assert fake_sentry.init_kwargs is not None
     assert fake_sentry.init_kwargs["environment"] == "test"
-    assert [level for level, _ in fake_sentry.messages] == ["exception"]
+    # Type name only: the exception message can carry tokens or source bodies.
+    assert fake_sentry.messages == [("error", "crypto-prices crashed: ValueError")]
+
+
+def test_init_disables_locals_and_request_bodies(fake_sentry):
+    init_sentry("x")
+    kwargs = fake_sentry.init_kwargs
+    assert kwargs is not None
+    assert kwargs["include_local_variables"] is False
+    assert kwargs["max_request_body_size"] == "never"
+    assert kwargs["send_default_pii"] is False
+    assert callable(kwargs["before_send"])
+
+
+def test_before_send_strips_frame_vars_request_and_messages(fake_sentry):
+    init_sentry("x")
+    assert fake_sentry.init_kwargs is not None
+    before_send = fake_sentry.init_kwargs["before_send"]
+    event = {
+        "message": "boom",
+        "request": {"url": "https://example.test/?token=abc", "data": "body"},
+        "breadcrumbs": {"values": [{"message": "GET https://example.test/?token=abc"}]},
+        "extra": {"payload": "body"},
+        "exception": {
+            "values": [
+                {
+                    "type": "ValueError",
+                    "value": "token=abc123",
+                    "stacktrace": {
+                        "frames": [{"function": "main", "vars": {"token": "abc123"}}]
+                    },
+                }
+            ]
+        },
+        "threads": {"values": [{"stacktrace": {"frames": [{"vars": {"body": "x"}}]}}]},
+    }
+    cleaned = before_send(event, {})
+    assert "request" not in cleaned
+    assert "breadcrumbs" not in cleaned
+    assert "extra" not in cleaned
+    value = cleaned["exception"]["values"][0]
+    assert value["type"] == "ValueError"
+    assert value["value"] == ""
+    assert "vars" not in value["stacktrace"]["frames"][0]
+    assert "vars" not in cleaned["threads"]["values"][0]["stacktrace"]["frames"][0]
+    assert "abc123" not in repr(cleaned)
 
 
 def test_non_zero_exit_is_reported_and_kept(fake_sentry):
