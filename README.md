@@ -1,6 +1,6 @@
 # book-opportunity-scraping
 
-**Tier:** C / tool prototype (portfolio breadth, not interview flagship)  
+**Tier:** B (catalog label; Big Loop target L3) · legacy: superseded by the domain data products, see `PRODUCT.md`  
 **Owner path:** `bookchaowalit/book-apps/tools/book-opportunity-scraping`
 
 ## Purpose
@@ -54,11 +54,18 @@ this repository's `data/briefings/`.
 
 ## Checks (offline)
 
+With [uv](https://docs.astral.sh/uv/) and the committed `uv.lock`:
+
 ```bash
-pip install -r requirements.txt pytest ruff
-ruff check .
-python -m pytest -q
+uv sync --frozen --all-extras      # runtime deps + dev tools (pytest, ruff, mypy) + sentry extra
+uv run ruff check . && uv run ruff format --check .
+uv run mypy .                      # gradual config in pyproject.toml
+uv run pytest -q --cov             # CI gate: total coverage >= 42%
 ```
+
+`requirements.txt` is kept in sync with `pyproject.toml` for the pip path above.
+Error reporting is opt-in: with the `sentry` extra and `SENTRY_DSN` set, crashes,
+non-zero exits and failed aggregator sources are reported (scrubbed; see `PRODUCT.md`).
 
 Tests cover scoring, keyword matching, dedupe, route parsing, e-mail
 masking, and fixture replays of HN, GitHub, DeFiLlama, CoinGecko, Frankfurter
