@@ -43,7 +43,7 @@ owner: Product owner (Book Dev)
 
 ## 5. คุณค่าและจุดต่าง
 
-- เจ้าของโดเมนที่ถูกต้องมีอยู่แล้ว: `book-ai-tools-data`, `book-products/book-crypto-data`, `book-defi-data`, `book-fx-data`, `book-stock-data`, `book-flight-data`, `book-seo-data`
+- เจ้าของโดเมนที่ถูกต้องมีอยู่แล้ว: `book-products/book-crypto-data`, `book-defi-data`, `book-fx-data`, `book-stock-data`, `book-flight-data`, `book-seo-data` (`book-ai-tools-data` ถูก retire แล้วเมื่อ 2026-10-23 ใน data-product-contracts-v3 จึงไม่มีผู้สืบทอดสำหรับ `scrape_ai_tools.py`)
 - การ synthesis "opportunity" ข้ามโดเมนถูกประกาศว่า retired แล้วใน roadmap data-scrapers
 
 ## 6. ช่องว่างสำคัญ
