@@ -5,7 +5,7 @@
 
 ## Purpose
 
-Loose bag of opportunity/market scrape scripts (crypto, DeFi, FX, flights, SEO, stocks, FB local, AI tools).
+Loose bag of opportunity/market scrape scripts (crypto, DeFi, FX, SEO, stocks, FB local, AI tools). The flight price scraper was removed on 2026-10-23 when the flights data product was retired.
 
 ## Entry points
 
@@ -14,7 +14,6 @@ Loose bag of opportunity/market scrape scripts (crypto, DeFi, FX, flights, SEO, 
 | `opportunities/scrape_money_opportunities.py` | HN, GitHub, Reddit/Etsy/eBay via search, scored opportunities | `opportunities/data/` |
 | `scrape_ai_tools.py` | AI tool directories | `data/book-ai/` |
 | `scrape_crypto_prices.py`, `scrape_defi_yields.py`, `scrape_exchange_rates.py`, `scrape_stock_prices.py` | market prices/yields | `data/book-finance/` |
-| `scrape_flight_prices.py` | flight prices for fixed routes | `data/book-travel/` |
 | `scrape_seo_rankings.py` | search rankings for a domain | `data/book-marketing/` |
 | `scrape_fb_local.py` | job posts in Facebook groups via search (see privacy note) | `data/contact_emails.json` |
 
@@ -29,7 +28,6 @@ Python 3.10+ scripts at the repository root; dependencies in `requirements.txt`.
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 python3 scrape_crypto_prices.py --help
-python3 scrape_flight_prices.py --routes BKK-SIN,BKK-TYO
 python3 opportunities/scrape_money_opportunities.py --help
 ```
 
@@ -67,15 +65,15 @@ uv run pytest -q --cov             # CI gate: total coverage >= 42%
 Error reporting is opt-in: with the `sentry` extra and `SENTRY_DSN` set, crashes,
 non-zero exits and failed aggregator sources are reported (scrubbed; see `PRODUCT.md`).
 
-Tests cover scoring, keyword matching, dedupe, route parsing, e-mail
+Tests cover scoring, keyword matching, dedupe, e-mail
 masking, and fixture replays of HN, GitHub, DeFiLlama, CoinGecko, Frankfurter
-and the ProductHunt / TAAFT / Skyscanner markdown parsers, all without network
+and the ProductHunt / TAAFT markdown parsers, all without network
 access; CI (`.github/workflows/ci.yml`) runs them.
 
-The crypto, FX, flight and AI-tool scripts write their CSV snapshots and
+The crypto, FX and AI-tool scripts write their CSV snapshots and
 histories atomically (`atomic_io.py`: temp file + fsync + `os.replace`), so a
 killed cron run never leaves a truncated file. FX history skips duplicate
-`(date, base, currency)` rows, and the crypto/FX/flight CLIs validate ids,
+`(date, base, currency)` rows, and the crypto/FX CLIs validate ids,
 currency codes and thresholds before any request.
 
 ## Boundaries

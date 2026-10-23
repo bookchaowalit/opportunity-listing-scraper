@@ -13,7 +13,6 @@ sys.path.insert(0, str(ROOT))
 import scrape_ai_tools  # noqa: E402
 import scrape_defi_yields  # noqa: E402
 import scrape_fb_local  # noqa: E402
-import scrape_flight_prices  # noqa: E402
 import scrape_seo_rankings  # noqa: E402
 import scrape_stock_prices  # noqa: E402
 
@@ -70,39 +69,6 @@ class DefiNonFiniteTests(unittest.TestCase):
         ]
         kept = scrape_defi_yields.filter_pools(pools, chains=[], min_apy=5.0)
         self.assertEqual([p["pool"] for p in kept], ["ok"])
-
-
-class FlightDeterminismTests(unittest.TestCase):
-    payload = {
-        "data": [
-            {
-                "price": 3000,
-                "route": [
-                    {"airline": a}
-                    for a in ("TG", "SQ", "FD", "VZ", "MH", "AK", "OD", "CX")
-                ],
-                "dTime": 1_700_000_000,
-                "aTime": 1_700_003_600,
-                "deep_link": "https://example.test/f",
-            }
-        ]
-    }
-
-    @unittest.skipUnless(hasattr(time, "tzset"), "needs time.tzset")
-    def test_airlines_in_route_order_and_times_in_utc(self):
-        with (
-            patch.object(scrape_flight_prices, "TEQUILA_API_KEY", "k"),
-            patch.object(
-                scrape_flight_prices.httpx, "get", return_value=_Resp(self.payload)
-            ),
-            _BangkokTZ(),
-        ):
-            flights = scrape_flight_prices.fetch_kiwi_tequila(
-                "BKK", "SIN", "01/01/2026", "02/01/2026"
-            )
-        self.assertEqual(flights[0]["airline"], "TG,SQ,FD,VZ,MH,AK,OD,CX")
-        self.assertEqual(flights[0]["departure"], "2023-11-14 22:13")
-        self.assertEqual(flights[0]["return"], "2023-11-14 23:13")
 
 
 @unittest.skipUnless(hasattr(time, "tzset"), "needs time.tzset")

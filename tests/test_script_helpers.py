@@ -8,36 +8,6 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 import scrape_fb_local
-import scrape_flight_prices
-
-
-class FlightRouteTests(unittest.TestCase):
-    def test_routes_flag(self):
-        self.assertEqual(
-            scrape_flight_prices.parse_routes("bkk-sin, BKK-TYO,bad,-x"),
-            [("BKK", "SIN"), ("BKK", "TYO")],
-        )
-
-    def test_origin_with_destinations(self):
-        self.assertEqual(
-            scrape_flight_prices.parse_routes(None, "cnx", "sin,hkg"),
-            [("CNX", "SIN"), ("CNX", "HKG")],
-        )
-
-    def test_defaults_and_passthrough(self):
-        self.assertEqual(
-            scrape_flight_prices.parse_routes(None),
-            list(scrape_flight_prices.DEFAULT_ROUTES),
-        )
-        self.assertEqual(
-            scrape_flight_prices.parse_routes([("BKK", "SIN")]), [("BKK", "SIN")]
-        )
-
-    def test_outputs_stay_inside_the_repository(self):
-        self.assertEqual(scrape_flight_prices.ROOT, ROOT)
-        self.assertTrue(
-            str(scrape_flight_prices.OUTPUT_DIR).startswith(str(ROOT / "data"))
-        )
 
 
 class EmailPrivacyTests(unittest.TestCase):

@@ -1,4 +1,4 @@
-"""Fixture replay for CoinGecko, Frankfurter and the markdown tool/flight
+"""Fixture replay for CoinGecko, Frankfurter and the markdown tool
 parsers, plus atomic persistence and CLI bounds (no network)."""
 
 import csv
@@ -18,7 +18,6 @@ import atomic_io  # noqa: E402
 import scrape_ai_tools  # noqa: E402
 import scrape_crypto_prices as crypto  # noqa: E402
 import scrape_exchange_rates as fx  # noqa: E402
-import scrape_flight_prices as flights  # noqa: E402
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -216,48 +215,7 @@ def test_parse_taft_fixture_dedupes_and_ignores_other_links():
     ]
 
 
-def test_parse_skyscanner_takes_cheapest_real_fare_and_survives_bare_symbol():
-    rows = flights.parse_skyscanner(_text("skyscanner_bkk_sin.md"), "BKK", "SIN")
-    assert len(rows) == 1
-    assert rows[0]["price_thb"] == 3450
-    assert rows[0]["url"].endswith("/bkk/sin/")
-    assert flights.parse_skyscanner("฿, only", "BKK", "SIN") == []
-    assert flights.parse_skyscanner("fees ฿120", "BKK", "SIN") == []
-
-
 # --- Persistence ordering and atomic writes --------------------------------
-
-
-def test_flight_alerts_compare_against_previous_run(tmp_path, monkeypatch):
-    monkeypatch.setattr(flights, "OUTPUT_DIR", tmp_path)
-    route = {
-        "origin": "BKK",
-        "destination": "SIN",
-        "price_thb": 5000,
-        "source": "Skyscanner",
-    }
-    monkeypatch.setattr(flights, "fetch_kiwi_tequila", lambda *a: [])
-    monkeypatch.setattr(flights, "fetch_skyscanner_free", lambda *a: [dict(route)])
-    _quiet(flights.main, routes=[("BKK", "SIN")])
-    route["price_thb"] = 4000
-    out = io.StringIO()
-    with redirect_stdout(out):
-        flights.main(routes=[("BKK", "SIN")])
-    assert "PRICE DROP -20.0%" in out.getvalue()
-    assert [r["price_thb"] for r in _csv(tmp_path / "flight_prices_history.csv")] == [
-        "5000",
-        "4000",
-    ]
-
-
-@pytest.mark.parametrize(
-    "argv", [["--days-ahead", "0"], ["--days-ahead", "181"], ["--alert-drop-pct", "0"]]
-)
-def test_flight_cli_bounds(argv):
-    with redirect_stderr(io.StringIO()):
-        with pytest.raises(SystemExit) as ctx:
-            flights.cli(argv)
-    assert ctx.value.code == 2
 
 
 def test_ai_tools_new_urls_are_detected_before_history_append(tmp_path, monkeypatch):

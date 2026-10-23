@@ -22,7 +22,7 @@ owner: Product owner (Book Dev)
 
 ## 3. สิ่งที่ทำได้จริงตอนนี้
 
-- สคริปต์ที่ root: `scrape_ai_tools.py`, `scrape_crypto_prices.py`, `scrape_defi_yields.py`, `scrape_exchange_rates.py`, `scrape_stock_prices.py`, `scrape_flight_prices.py`, `scrape_seo_rankings.py`, `scrape_fb_local.py`
+- สคริปต์ที่ root: `scrape_ai_tools.py`, `scrape_crypto_prices.py`, `scrape_defi_yields.py`, `scrape_exchange_rates.py`, `scrape_stock_prices.py`, `scrape_seo_rankings.py`, `scrape_fb_local.py`
 - `opportunities/scrape_money_opportunities.py` ให้คะแนนโอกาสจาก HN/GitHub/search
 - เขียน CSV แบบ atomic; test ใช้ fixture offline
 - README ประกาศเองว่าเป็น Tier C "loose bag"
@@ -43,7 +43,7 @@ owner: Product owner (Book Dev)
 
 ## 5. คุณค่าและจุดต่าง
 
-- เจ้าของโดเมนที่ถูกต้องมีอยู่แล้ว: `book-products/book-crypto-data`, `book-defi-data`, `book-fx-data`, `book-stock-data`, `book-flight-data`, `book-seo-data` (`book-ai-tools-data` ถูก retire แล้วเมื่อ 2026-10-23 ใน data-product-contracts-v3 จึงไม่มีผู้สืบทอดสำหรับ `scrape_ai_tools.py`)
+- เจ้าของโดเมนที่ถูกต้องมีอยู่แล้ว: `book-products/book-crypto-data`, `book-defi-data`, `book-fx-data`, `book-stock-data`, `book-seo-data` (`book-ai-tools-data` ถูก retire แล้วเมื่อ 2026-10-23 ใน data-product-contracts-v3 จึงไม่มีผู้สืบทอดสำหรับ `scrape_ai_tools.py`; `book-flight-data` ถูก retire วันเดียวกันใน data-product-contracts-v4 และลบ `scrape_flight_prices.py` ออกแล้ว)
 - การ synthesis "opportunity" ข้ามโดเมนถูกประกาศว่า retired แล้วใน roadmap data-scrapers
 
 ## 6. ช่องว่างสำคัญ

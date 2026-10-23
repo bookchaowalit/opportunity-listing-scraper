@@ -74,7 +74,7 @@ aggregator's `--setup-cron` flag (daily 10:00 crontab line with `--send-digest
 --push-todoist`) is not installed on this WSL host (checked 2026-10-22); Windows tasks
 are unverified [ต้องยืนยัน]. Planned replacement: **none for this repo.** The seven
 market scripts' schedules belong to their successor products (market-data, flight, SEO,
-AI-tools) under D6; the aggregator and `scrape_fb_local.py` are drops. If the owner keeps
+AI-tools) under D6 (flights and AI tools were retired on 2026-10-23; the flight script was removed); the aggregator and `scrape_fb_local.py` are drops. If the owner keeps
 the aggregator (roadmap os-g4), it would run as one hosted daily job without
 `--push-todoist` and with `SENTRY_DSN` set, after the Todoist push is removed (os-t2).
 

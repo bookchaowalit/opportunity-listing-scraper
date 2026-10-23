@@ -53,7 +53,6 @@ module = [
     "scrape_defi_yields",
     "scrape_exchange_rates",
     "scrape_fb_local",
-    "scrape_flight_prices",
     "scrape_money_opportunities",
     "scrape_seo_rankings",
     "scrape_stock_prices",
