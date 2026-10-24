@@ -85,3 +85,9 @@ drop pending owner disposition and nothing from it is sent to Sentry.
 | Date | KPI ID | Change | Reason | Baseline restated? | Approved by |
 |---|---|---|---|---|---|
 | 2026-10-22 | all | first draft | Big Loop L3 | n/a | pending |
+
+## Review (2026-10-24): changes requested
+
+Checker: independent Claude reviewer subagent (`solo:solo-reviewer`, Sonnet, read-only, no maker context). Status unchanged until fixed.
+
+- Gap: KPI-L-01 baseline of 4 side effects is not reproducible with the stated command rg -i 'todoist|contact_emails|crontab' (Telegram missing from the pattern; finds 3).
