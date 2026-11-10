@@ -53,10 +53,22 @@ class FakeSentry(types.ModuleType):
         pass
 
 
+class FakeLoggingIntegration:
+    def __init__(self, **kwargs: Any) -> None:
+        self.kwargs = kwargs
+
+
+def install_fake_logging_integration(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = types.ModuleType("sentry_sdk.integrations.logging")
+    module.LoggingIntegration = FakeLoggingIntegration  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "sentry_sdk.integrations.logging", module)
+
+
 @pytest.fixture
 def fake_sentry(monkeypatch):
     sdk = FakeSentry()
     monkeypatch.setitem(sys.modules, "sentry_sdk", sdk)
+    install_fake_logging_integration(monkeypatch)
     monkeypatch.setenv("SENTRY_DSN", "https://public@example.invalid/1")
     return sdk
 
@@ -143,3 +155,19 @@ def test_without_dsn_sentry_is_never_initialised(fake_sentry, sandbox, monkeypat
     _run({"hn": ("HN", _ok), "github": ("GitHub", _boom)}, monkeypatch)
     assert fake_sentry.init_kwargs is None
     assert fake_sentry.messages == []
+
+
+def test_unknown_cli_source_is_not_echoed_into_sentry(
+    fake_sentry, sandbox, monkeypatch
+):
+    # --sources is free text; only names made of safe characters reach the message.
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["scrape_money_opportunities.py", "--sources", "hn,https://x.test/?k=s3cr3t"],
+    )
+    with patch.dict(money.SOURCE_MAP, {"hn": ("HN", _ok)}, clear=True):
+        money.main()
+    assert fake_sentry.messages == [
+        ("warning", "money-opportunities: 1 of 2 sources failed: other (error)")
+    ]

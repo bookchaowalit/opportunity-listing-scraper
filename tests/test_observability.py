@@ -15,14 +15,26 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from observability import init_sentry, run_job  # noqa: E402
-from test_run_failures import FakeSentry  # noqa: E402
+from observability import (  # noqa: E402
+    init_sentry,
+    report_source_failures,
+    run_job,
+    scrub_event,
+)
+from test_run_failures import (  # noqa: E402
+    FakeLoggingIntegration,
+    FakeSentry,
+    install_fake_logging_integration,
+)
+
+SECRET = "token=abc123"
 
 
 @pytest.fixture
 def fake_sentry(monkeypatch):
     sdk = FakeSentry()
     monkeypatch.setitem(sys.modules, "sentry_sdk", sdk)
+    install_fake_logging_integration(monkeypatch)
     monkeypatch.setenv("SENTRY_DSN", "https://public@example.invalid/1")
     monkeypatch.setenv("SENTRY_ENVIRONMENT", "test")
     return sdk
@@ -113,3 +125,69 @@ def test_without_dsn_nothing_is_initialised(fake_sentry, monkeypatch):
     with pytest.raises(ValueError):
         run_job("x", lambda: (_ for _ in ()).throw(ValueError("boom")))
     assert fake_sentry.init_kwargs is None
+
+
+def test_init_disables_log_to_event_and_breadcrumbs(fake_sentry: FakeSentry) -> None:
+    # The default LoggingIntegration turns logger.error(...) (ours or a library's)
+    # into an event whose logentry holds free log text: URLs, bodies, tokens.
+    init_sentry("x")
+    assert fake_sentry.init_kwargs is not None
+    found = [
+        i
+        for i in fake_sentry.init_kwargs["integrations"]
+        if isinstance(i, FakeLoggingIntegration)
+    ]
+    assert len(found) == 1
+    assert found[0].kwargs["event_level"] is None
+    assert found[0].kwargs["level"] is None
+    assert found[0].kwargs["sentry_logs_level"] is None
+
+
+def test_before_send_drops_logentry():
+    text = f"GET https://example.test/?{SECRET} failed"
+    event = {"logentry": {"message": text, "formatted": text, "params": [SECRET]}}
+    cleaned = scrub_event(event, {})
+    assert "logentry" not in cleaned
+    assert "abc123" not in repr(cleaned)
+
+
+def test_before_send_drops_foreign_message():
+    for foreign in (
+        f"request to https://example.test/?{SECRET}",
+        f"crypto-prices crashed: ValueError {SECRET}",
+        "crypto-prices exited with code 1 extra",
+        "money-opportunities: 1 of 2 sources failed: github (HTTP 503 at /x)",
+    ):
+        assert "message" not in scrub_event({"message": foreign}, {})
+
+
+def test_before_send_keeps_own_reporter_messages(fake_sentry):
+    with pytest.raises(ValueError):
+        run_job("crypto-prices", lambda: (_ for _ in ()).throw(ValueError(SECRET)))
+    with pytest.raises(SystemExit):
+        run_job("stock-prices", lambda: sys.exit("fatal: " + SECRET))
+    run_job("money-opportunities", lambda: 2)
+    sdk = init_sentry("money-opportunities")
+    report_source_failures(
+        sdk,
+        "money-opportunities",
+        [
+            {"source": "hn", "status": "ok"},
+            {"source": "github", "status": "error"},
+            {"source": "reddit", "status": "timeout"},
+        ],
+    )
+    own = [message for _, message in fake_sentry.messages]
+    assert own == [
+        "crypto-prices crashed: ValueError",
+        "stock-prices exited with code 1",
+        "money-opportunities exited with code 2",
+        "money-opportunities: 2 of 3 sources failed: github (error), reddit (timeout)",
+    ]
+    for message in own:
+        assert scrub_event({"message": message}, {})["message"] == message
+
+
+def test_before_send_blanks_exception_value():
+    event = {"exception": {"values": [{"type": "ValueError", "value": SECRET}]}}
+    assert scrub_event(event, {})["exception"]["values"][0]["value"] == ""

@@ -12,11 +12,20 @@ hold source bodies or tokens, so ``include_local_variables`` is off, request bod
 are never sent, and :func:`scrub_event` (``before_send``) drops frame ``vars``,
 request data, breadcrumbs and extras and blanks exception messages, keeping only
 the exception type. Crashes are reported as the type name plus tags.
+
+Log text (2026-11-10): the default ``LoggingIntegration`` would turn any
+``logger.error(...)`` (ours or a library's, e.g. urllib3) into an event whose
+``logentry`` holds free text: URLs with query strings, scraped data, tokens. Init
+disables log-to-event and log-to-breadcrumb; ``scrub_event`` always drops
+``logentry`` and keeps ``message`` only when it fullmatches one of this module's
+own formats (job name, exit code, exception type, source names and statuses).
+Source names and statuses are reduced to safe tokens before they are sent.
 """
 
 from __future__ import annotations
 
 import os
+import re
 from collections.abc import Callable, Iterable, Mapping
 from importlib import import_module
 from types import ModuleType
@@ -35,10 +44,34 @@ def _strip_frames(container: Any) -> None:
                 frame.pop("vars", None)
 
 
+_TOKEN = r"[A-Za-z0-9_.-]{1,40}"
+_SAFE_TOKEN = re.compile(_TOKEN)
+_SOURCE = rf"{_TOKEN} \({_TOKEN}\)"
+# The only messages this module sends (run_job, report_source_failures).
+_OWN_MESSAGES = (
+    re.compile(rf"{_TOKEN} exited with code -?\d+"),
+    re.compile(rf"{_TOKEN} crashed: [A-Za-z_][A-Za-z0-9_]*"),
+    re.compile(rf"{_TOKEN}: \d+ of \d+ sources failed: {_SOURCE}(?:, {_SOURCE})*"),
+)
+
+
+def _safe_token(value: object) -> str:
+    text = str(value)
+    return text if _SAFE_TOKEN.fullmatch(text) else "other"
+
+
+def _is_own_message(message: object) -> bool:
+    return isinstance(message, str) and any(
+        pattern.fullmatch(message) for pattern in _OWN_MESSAGES
+    )
+
+
 def scrub_event(event: dict[str, Any], hint: dict[str, Any]) -> dict[str, Any]:
     """``before_send``: drop locals, request data and free text that may hold secrets."""
-    for key in ("request", "breadcrumbs", "extra"):
+    for key in ("request", "breadcrumbs", "extra", "logentry"):
         event.pop(key, None)
+    if not _is_own_message(event.get("message")):
+        event.pop("message", None)
     exception = event.get("exception")
     _strip_frames(exception)
     if isinstance(exception, dict):
@@ -56,6 +89,7 @@ def init_sentry(job: str) -> ModuleType | None:
         return None
     try:
         sdk = import_module("sentry_sdk")
+        logging_integration = import_module("sentry_sdk.integrations.logging")
     except ImportError:
         return None
     sdk.init(
@@ -66,6 +100,12 @@ def init_sentry(job: str) -> ModuleType | None:
         include_local_variables=False,
         max_request_body_size="never",
         before_send=scrub_event,
+        # No log records as events or breadcrumbs: their text is free-form.
+        integrations=[
+            logging_integration.LoggingIntegration(
+                level=None, event_level=None, sentry_logs_level=None
+            )
+        ],
     )
     sdk.set_tag("job", job)
     return sdk
@@ -111,7 +151,12 @@ def report_source_failures(
     failed = [r for r in records if r.get("status") != "ok"]
     if sdk is None or not failed:
         return
-    names = ", ".join(sorted(f"{r.get('source')} ({r.get('status')})" for r in failed))
+    names = ", ".join(
+        sorted(
+            f"{_safe_token(r.get('source'))} ({_safe_token(r.get('status'))})"
+            for r in failed
+        )
+    )
     level = "error" if len(failed) == len(records) else "warning"
     sdk.capture_message(
         f"{job}: {len(failed)} of {len(records)} sources failed: {names}", level=level
