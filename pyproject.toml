@@ -2,7 +2,7 @@
 name = "opportunity-listing-scraper"
 version = "0.1.0"
 description = "Legacy multi-domain opportunity scraper scripts (successors: the domain *-data products)."
-requires-python = ">=3.10"
+requires-python = ">=3.11.5"
 # Same runtime set as requirements.txt, which the scripts' own error messages and the
 # README's pip path install from: change both together.
 dependencies = [
